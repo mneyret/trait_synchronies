@@ -1,0 +1,1526 @@
+---
+title: "Trait synergies"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Exploration of the trait analysis for trait synchrony.
+
+```{r Setup, echo = FALSE, include = FALSE}
+# Set working directory
+
+library(forcats)
+library(ade4)
+library(factoextra)
+library(ggfortify)
+library(ggcorrplot)
+library(lavaan)
+library(semPlot)
+library(ghibli)
+library(mice)
+library(miceFast)
+library(ggnetwork)
+library(viridis)
+library(ggpmisc)
+
+knitr::opts_knit$set(root.dir = "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/")
+my_palette <- ghibli_palette("LaputaMedium", direction = -1)
+env_corr <- TRUE
+region_corr <- FALSE
+seed = 101
+source('/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code/CWM_analysis/Prep_notebook.R')
+
+#### Functions ####
+# Function to correct for region and/or environment
+corrections <- function(CWM_data, Env_data = NULL, env_corr = FALSE, region_corr = FALSE, variables = NULL, env_variables = NULL) {
+  CWM_data_copy <- copy(CWM_data)
+  if (env_corr == TRUE & is.null(Env_data)) {
+    stop("Please provide environmental data")
+  }
+  
+  if (is.null(variables)) {
+    variables <- colnames(CWM_data_copy)[!(colnames(CWM_data_copy) %in% c("Plot", "Year"))]
+  }
+  
+  if (is.null(env_variables)) {
+    env_variables <- colnames(Env_data)[!(colnames(Env_data) %in% c("Plot", "Year"))]
+  }
+  
+  if (region_corr == TRUE) {
+    CWM_data_copy[, (variables) := lapply(.SD, function(x) {
+      if (region_corr == TRUE) {
+        mod <- lm(x ~ substr(Plot, 1, 1))
+        return(residuals(mod))
+      }
+    }),
+    .SDcols = variables
+    ]
+  }
+  
+  if (env_corr == TRUE) {
+    CWM_data_copy <- merge(CWM_data_copy, Env_data[, .SD, .SDcols = c("Plot", env_variables)], by = "Plot")
+    
+    CWM_data_copy[, (variables) := lapply(.SD, function(x) {
+      mod <- lm(x ~ ., CWM_data_copy[, .SD, .SDcols = env_variables])
+      return(residuals(mod))
+    }),
+    .SDcols = variables
+    ]
+    CWM_data_copy = CWM_data_copy[, .SD, .SDcols = c(variables, 'Plot')]
+  }
+  return(CWM_data_copy)
+}
+
+# Function to change the direction of PCA axis (for reproductibility of axes direction)
+axes_direction_pca <- function(pca, cwm, traitnames, conditions) {
+  if (length(conditions) != length(traitnames)) {
+    print("Number of axes, traits, and conditions should be equal")
+  }
+  else {
+    cond_positive <- ifelse(gsub(" ", "", conditions) == ">0", TRUE, FALSE)
+    I <- length(traitnames)
+    for (i in 1:I) {
+      if ((pca$li[cwm[get(traitnames[i]) == max(get(traitnames[i])), Plot], i] > 0) != cond_positive[i]) {
+        #   print(paste("Changed direction of axis", i))
+        pca$li[, i] <- -pca$li[, i]
+        pca$co[, i] <- -pca$co[, i]
+      }
+    }
+  }
+  return(pca)
+}
+
+# Function to draw pca
+my_dudi_pca <- function(CWM_matrix, col_to_use, NF = 3) {
+  matrix <- data.frame(CWM_matrix[complete.cases(CWM_matrix[, ..col_to_use])])
+  rownames(matrix) <- matrix$Plot
+  pca <- dudi.pca(matrix[, col_to_use], scannf = FALSE, nf = NF)
+  return(pca)
+}
+scale01 = function(x){
+  return((x-min(x))/(max(x)-min(x)))
+}
+
+pal.fnc = colorRamp(c('#4575b4','#91bfdb','#e0f3f8','#fee090','#fc8d59',
+                      '#d73027'))
+print_table = function(Hypo_table){
+#Hypo_table[, Group := droplevels(Group)]
+Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", "Direct/indirect", "Disturbance",	"ref_dist",	"Resources",	"ref_res", 'Est', 'Fit_exp','Mowing', 'Grazing', 'Fertil'#, 'Est_nocorr', 'Fit_exp_nocorr'
+                                         )]
+H_kable <- kable_paper(kbl(Table_use, escape = FALSE))
+
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est"),
+  background = rgb(pal.fnc(scale01(Hypo_table$Est)), maxColorValue=255),
+  color = 'white',
+  bold  = Hypo_table$Signif == "YES",
+  italic  = !Hypo_table$Signif == "no"
+)
+
+
+max.val = max(Hypo_table[, c('Mowing', 'Grazing', 'Fertil')])
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Mowing"),
+                       color  = rgb(pal.fnc(scale01(Hypo_table$Mowing)), maxColorValue=255))
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Grazing"),
+                       color =  rgb(pal.fnc(scale01(Hypo_table$Grazing)), maxColorValue=255))
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fertil"),
+                       color  =  rgb(pal.fnc(scale01(Hypo_table$Fertil )), maxColorValue=255))
+
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est_nocorr"),
+  background = rgb(pal.fnc(scale01(Hypo_table$Est_nocorr)), maxColorValue=255),
+  color = 'white',
+                     bold  = Hypo_table$Signif == "YES",
+                     italic  = !Hypo_table$Signif == "no"
+)
+
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fit_exp"),
+              background = ifelse(is.na(Hypo_table$Fit_exp) | Hypo_table$Fit_exp == 'Inconclusive', 'grey', 'white')
+)
+H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fit_exp_nocorr"),
+              background = ifelse(is.na(Hypo_table$Fit_exp_nocorr) | Hypo_table$Fit_exp_nocorr == 'Inconclusive', 'grey', 'white')
+)
+     
+                          
+H_kable = gsub( '+', '&#43;', H_kable, fixed = T)
+H_kable = gsub( '@@@', '&#', H_kable)
+H_kable %>% pack_rows(index = table(as.character(Hypo_table$Group)))
+
+}
+
+calculate_coeff = function(DATA){
+  mod = 'value ~ Fertil 
+         value ~ Mowing
+         value ~ Grazing
+      
+      Mowing ~~ Fertil 
+      Grazing ~~ Fertil 
+      Grazing ~~ Mowing
+'
+sem_components = sem(mod, data = DATA)
+res = as.list(partable(sem_components)$est[1:3])
+names(res) = partable(sem_components)$rhs[1:3]
+
+lui_mod = lm(value ~ LUI, data = DATA)
+coeff = coefficients(summary(lui_mod))[2,]
+res$estimate = coeff['Estimate']
+res$p = coeff['Pr(>|t|)']
+
+lui_mod_uncorr = lm(value_uncorr ~ LUI, data = DATA)
+coeff = coefficients(summary(lui_mod_uncorr))[2,]
+res$estimate_uncorr = coeff['Estimate']
+res$p_uncorr = coeff['Pr(>|t|)']
+
+return(res)
+}
+```
+
+Parameters: environmental correction is `r env_corr`, correction for the region is `r region_corr`.
+
+```{r Data input, echo = FALSE, include = FALSE}
+# Environment data (LUI 2008-2017) ####
+data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI),
+                           Mowing = mean(M_STD),
+                           Fertil = mean(F_STD),
+                           Grazing = mean(G_STD)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+env_from_gaetane <- data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/Aggregated environmental and land use covariates of grassland EPs.xlsx"))
+env_from_gaetane[, Plot := EP_PlotID]
+env_data_lui = merge.data.table(data_lui, env_from_gaetane[, c('Plot', 'LII', 
+                                                               "Soil.pH", "Soil.depth", "Soil.clay.content" , "Soil.sand.content", "TWI" , 'Grassland.1000')])
+
+      Temp =   fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/Ta_200_2008_2018_3a7aa69b37636254/plots.csv")
+      Precip =   fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/precipitation_radolan_95a5c5f55a798133/plots.csv")
+      Climate_data <- merge.data.table(Temp[, plotID := gsub('f', '', plotID)], Precip, by = c('plotID', 'datetime'))
+      Climate_data[, Plot := plotID]
+      Climate <- Climate_data[datetime>=2008 & datetime <= 2018, list("Mean_Temp" = mean(Ta_200, na.rm = T), "Mean_precip" = mean(precipitation_radolan, na.rm = T)), by = list("Plot" = plotID)]
+
+env_data_lui = merge.data.table(env_data_lui, Climate, by = 'Plot')
+  
+env_var = c("Soil.pH", "Soil.depth", "Soil.clay.content" , "Soil.sand.content", "TWI", 'Mean_Temp', 'Mean_precip')
+env_data_lui[, (env_var) := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = env_var]
+list_groups = c('Mites_all', 'Coll_all', 
+                'Arthropods_above_herb', "Arthropods_below_herb", 'Arthropods_above_omni_carni',
+                'Arthropods_below_omni_carni', 'Birds_insect', 
+                'PlantsBG', 'PlantsAG', 
+                "Protists_bact",'Protists',  "Protists_sec_cons", 
+                "Butterflies",
+                'Microbes', 
+                'Bats')
+
+all_cwm_raw <- env_data_lui # This one will be used to calculate correlations with LUI, group-level PCAs, and non-miced main PCA (for the SI), it should be corrected for the environment but not miced
+
+all_cwm <- env_data_lui # This one will be used to run PCAs to feed into the big PCA and SEM, it is miced and corrected for the environment
+all_cwm_uncorr <- env_data_lui
+
+all_traits = character()
+all_groups = character()
+for (group in list_groups){
+  # Load dataset
+CWM = fread(paste0('/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_',group, '.csv'))
+  # Aggregate by plot
+CWM_agg = CWM[Year <= 2019 & grepl('G',Plot), lapply(.SD, mean, na.rm = T), .SDcols = colnames(CWM)[!(colnames(CWM) %in% c('Year', 'V1', 'Plot'))], by = 'Plot']
+  print(paste(group, ': ', nrow(CWM_agg), ' plots available for use', sep = ''))
+
+all_cwm_raw = merge.data.table(all_cwm_raw, CWM_agg, by = 'Plot', all = TRUE)
+
+ # Mice the results, with the env_lui as predictors (except LUI)
+CWM_to_mice = merge(CWM_agg, env_data_lui[,.SD, .SDcols = c(env_var, 'Plot')], by = 'Plot', all = T)
+imp = mice(CWM_to_mice, m = 10, seed=101)
+CWM_miced = data.table(mice::complete(imp))
+
+# Save the uncorrected
+all_cwm_uncorr <- merge.data.table(all_cwm_uncorr, CWM_miced[, .SD, .SDcols = colnames(CWM_agg)], all = T, by = "Plot")
+
+ # Correction for environment
+CWM_agg_corr = corrections(CWM_miced[, .SD, .SDcols = colnames(CWM_agg)],  Env_data = env_data_lui, region_corr = region_corr, env_corr = env_corr, env_variables = env_var)
+  # Add the group CWM to the all_cwm table
+all_cwm <- merge.data.table(all_cwm, CWM_agg_corr, all = T, by = "Plot")
+  # Create the group table
+assign(paste0('CWM_', group), CWM_agg_corr)
+  # Record trait names; add them to the all_traits, and count them in tha all_groups
+traits = colnames(CWM_agg)[!(colnames(CWM_agg) %in% c('Plot', 'Year'))]
+assign(paste0('traits_', group), traits)
+all_traits = c(all_traits, traits)
+all_groups = c(all_groups, rep(group, length(traits)))
+}
+```
+
+```{r Mini SEMs, echo = FALSE, include = FALSE}
+all_cwm_melt = melt.data.table(all_cwm, id.vars = c('Plot', env_var, 'Grazing', 'Mowing', 'Fertil', 'LUI'))
+all_cwm_melt_uncorr = melt.data.table(all_cwm_uncorr, id.vars = c('Plot', env_var, 'Grazing', 'Mowing', 'Fertil', 'LUI'))
+all_cwm_melt_all = merge.data.table(all_cwm_melt, all_cwm_melt_uncorr[,list(Plot, variable, value_uncorr = value)], id.vars = c('Plot', 'variable'))
+
+
+# scale everything
+all_cwm_melt_all[, c(env_var, 'Grazing', 'Mowing', 'Fertil', 'LUI',  'value', 'value_uncorr') := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = c(env_var, 'Grazing', 'Mowing', 'Fertil', 'LUI', 'value', 'value_uncorr'), by = variable]
+
+LUI_component_effect = all_cwm_melt_all[, calculate_coeff(.SD), by = variable, .SDcols = c('Grazing', 'Mowing','Fertil', 'value', 'value_uncorr', 'LUI')]
+
+```
+
+## Hypotheses
+
+Check all hypotheses between traits and environmental drivers, and among traits
+
+```{r Create hypothesis table, echo = FALSE, eval = TRUE}
+#corr_mat <- cor(all_cwm[, .SD, .SDcols = c(all_traits, env_var, 'LUI', 'Fertil','Productivity' )], use = "pairwise.complete.obs")
+#corr_pmat <- cor_pmat(all_cwm[, .SD, .SDcols = c(all_traits, env_var, env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
+
+#corr_mat_uncorr <- cor(all_cwm_uncorr[, .SD, .SDcols = c(all_traits,env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
+#corr_pmat_uncorr <- cor_pmat(all_cwm_uncorr[, .SD, .SDcols = c(all_traits,env_var,env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
+
+Hypothesis_table = data.table(read_excel('/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Hypotheses.xlsx'))
+
+Hypothesis_table = Hypothesis_table[Trait_short %in% LUI_component_effect$variable & Use =='y',]
+
+Hypothesis_table[, nrows := 1:nrow(Hypothesis_table)]
+
+# Adding values
+Hypothesis_table[Group != '', c("P", "Est",  'Mowing', 'Grazing', 'Fertil', 'P_uncorr', 'Est_nocorr') :=
+  list(
+    round(LUI_component_effect[variable == Trait_short, p], 5),
+    round(LUI_component_effect[variable == Trait_short, estimate], 2),
+    round(LUI_component_effect[variable == Trait_short, Mowing], 2),
+    round(LUI_component_effect[variable == Trait_short, Grazing], 2),
+    round(LUI_component_effect[variable == Trait_short, Fertil ], 2),
+    round(LUI_component_effect[variable == Trait_short, p_uncorr], 5),
+    round(LUI_component_effect[variable == Trait_short, estimate_uncorr], 2)), by = nrows]
+    
+  Hypothesis_table[,c('Direction', 'Direction_uncorr') := list(
+     ifelse(Expected_direction == '+/-',  ifelse(Est > 0, 'a', 'b'),
+         ifelse((Est > 0 & Expected_direction ==  "++") | (Est < 0 & Expected_direction ==  "--"), "yes", "no")),
+      ifelse(Expected_direction == '+/-',  ifelse(Est_nocorr > 0, 'a', 'b'),
+         ifelse((Est_nocorr > 0 & Expected_direction ==  "++") | (Est_nocorr < 0 & Expected_direction ==  "--"), "yes", "no"))
+      )]
+
+Hypothesis_table[, Padj := p.adjust(P, 'fdr')]
+Hypothesis_table[, Signif := ifelse(Padj < 0.05, 'YES', ifelse(P < 0.05, 'yes', 'no'))]
+
+Hypothesis_table[, Padj_uncorr := p.adjust(P_uncorr, 'fdr')]
+Hypothesis_table[, Signif_no_env_corr := ifelse(Padj_uncorr < 0.05, 'YES', ifelse(P_uncorr < 0.05, 'yes', 'no'))]
+
+
+
+return_hypo_result = function(Signif, Direction){
+  res = NA
+                                          if (Signif == 'no'){
+                                            res = 'Inconclusive' } 
+                                           if (Signif == 'yes'){
+                                             if (Direction %in% c('a', 'b')) {res = Direction}
+                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@10004;", "X")}  }
+                                             if (Signif == 'YES'){
+                                             if (Direction %in% c('a', 'b')) {res = toupper(Direction)}
+                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@9989;", "@@@10060;")} }
+  
+return(res)}
+
+Hypothesis_table[,  Fit_exp := return_hypo_result(Signif, Direction), by=1:nrow(Hypothesis_table)]
+Hypothesis_table[,  Fit_exp_nocorr := return_hypo_result(Signif_no_env_corr, Direction), by=1:nrow(Hypothesis_table)]
+
+responding_traits = Hypothesis_table[ Fit_exp != 'Inconclusive' & Direction != "no", Trait_short]
+
+```
+
+## Big PCA
+
+```{r Big PCA with all traits, echo = FALSE, eval = T, warning=FALSE, fig.show="hold", out.width="80%"}
+
+#Exclude traits with too many NAs
+too_many_NAs = all_cwm[, lapply(.SD, function(x){length(x[is.na(x)])>50})]
+exclude_traits_NAs <- colnames(too_many_NAs)[as.numeric(too_many_NAs) == 1]
+
+exclude_traits_hypo = all_traits[!all_traits %in% Hypothesis_table$Trait_short]
+
+exclude_traits = c(exclude_traits_NAs,
+                   exclude_traits_hypo)
+
+use_traits <- all_traits[!(all_traits %in% exclude_traits)]
+use_groups <- all_groups[!(all_traits %in% exclude_traits)]
+
+all_cwm_miced <- copy(data.table(all_cwm))
+all_cwm_miced$Plot = all_cwm$Plot
+
+#com <- data.table(scale(data.frame(all_cwm_miced[complete.cases(all_cwm_miced), .SD, .SDcols = c(use_traits, #colnames(env_data_lui)[-1])])))
+#rownames(com) <- all_cwm_miced[complete.cases(all_cwm_miced), ]$Plot
+#
+##com[, c('Ocelli_0', 'Pigment_0')] = 0
+#tot_pca <- dudi.pca(com[, ..use_traits],
+#  col.w = rep(1 / table(use_groups), times = table(use_groups)),
+#  scannf = FALSE, nf = 3
+#)
+
+
+## Calculating sup var loadings and rotating them if needed too
+#quanti.coord <- supcol(tot_pca, data.frame(scale(env_data_lui[, c('Fertil', 'LUI', 'Mowing','Grazing')])))$cosup * #tot_pca$eig[1:3]^2
+#
+
+#library(RColorBrewer)
+#my_cols <- c(
+#  "black",
+#  "#71475F", "#c09bb1",
+#  "#536179",
+#  "#CC3E40", "#812224",
+#   "#CC3E40", "#812224",
+#  "black",
+#  "#F8C9A0", "#F3933F",
+#    "#F8C9A0", "#F3933F",
+#  "#8cb369", "#386641",
+#  "#72ACFD", "#2E4BB2",
+#   "#72ACFD", "#2E4BB2",
+#  "black", "black"
+#)
+
+# Without env
+#tot_pca$li[1] = -tot_pca$li[1]
+#tot_pca12 <- fviz_pca_var(tot_pca, col.var = use_groups, #palette = my_cols[-c(1, 7, 14)], 
+#                          geom = c("arrow", "text"
+#                                   ),# repel = T, 
+#                          alpha = 0.5#, max.overlaps = 50
+#                          )
+#tot_pca12 <- fviz_add(tot_pca12, quanti.coord, axes = c(1, 2), "arrow", color = "black", linetype = "solid"#,# repel = T,
+                      #addlabel = T
+#                      )
+
+#tot_pca12 + theme(legend.position = "none")
+
+#tot_pca13 <- fviz_pca_var(tot_pca, col.var = use_groups,# palette = my_cols[-c(1, 7, 14)], 
+#                          geom = c("arrow", "text"), #repel = T, 
+#                          axes = c(1, 3))
+
+#tot_pca13
+
+```
+
+## Identification of strategy axes for each group
+
+### Environmental PCA
+
+```{r Env PCA, echo = FALSE, warning=FALSE, eval = T,  fig.show="hold", out.width="50%"}
+# Run PCA
+#pca_env <- my_dudi_pca(env_data_lui, c(env_var, "Mowing", 'Grazing', 'Fertil'))
+#pca_env <- axes_direction_pca(pca_env, env_data_lui, c("Fertil"), c( ">0"))
+
+# Plot PCA
+#fviz_pca(pca_env,
+#  habillage = substr(env_data_lui$Plot, 1, 1), palette = my_palette, col.var = my_palette[4], alpha.ind = 1,
+#  geom = c("point"), xlim = c(-5, 5), title = "" # ,"Plants - AG"
+#) + theme(legend.position = "none")
+#fviz_pca(pca_env,
+#  habillage = substr(env_data_lui$Plot, 1, 1), palette = my_palette, col.var = my_palette[4], alpha.ind = 1,
+#  geom = c("point"), xlim = c(-5, 5), axes = c(1, 3), title = "" # "Plants - AG",
+#)
+
+# ggsave(plot = plot_env, paste("Results/plot_env__region",region_corr, '_env', env_corr ,".pdf", sep = ''), width = 5, height = 4)
+```
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+# Function to auto run PCAs
+run_group_pca = function(cwm, traits, trait_fast, exclude_traits, plot = TRUE, env_corr, Labels = NA, annot = NA, naxes = 2){
+   traits = traits[!(traits %in% exclude_traits)]
+   pca = my_dudi_pca(cwm, traits)
+   pca_stand = axes_direction_pca(pca, cwm, trait_fast, ">0")
+  
+    corr_unsignificant = 0
+    for (trait in traits){
+     cor = cor.test(unlist(cwm[, ..trait]), pca$l1$RS1)
+    if (cor$p.value > 0.05){
+      corr_unsignificant = corr_unsignificant+1
+    }
+   }
+
+   
+   keep_criteria = data.table('More_than_random' = pca$eig[1] / (1/length(traits)),
+                              'Prop.traits.40' =   length(pca$c1$CS1[abs(pca$c1$CS1)>0.4])/length(pca$c1$CS1),
+                              'Cor_unsignificant' =  corr_unsignificant)
+   keep_criteria[, enough_support := More_than_random >2 & Prop.traits.40 >= 0.60]
+   keep_criteria[, partial := More_than_random >2 & Prop.traits.40 >= 0.60 & Cor_unsignificant > 0]
+   keep_criteria[, LUI.Axis1 := round(cor.test(cwm$LUI, pca$l1$RS1)$p.value, 3)]
+   keep_criteria[, LUI.Axis2 := round(cor.test(cwm$LUI, pca$l1$RS2)$p.value, 3)]
+
+
+  # if (env_corr == TRUE){
+        quanti.coord <- supcol(pca, scale(env_data_lui[Plot %in% cwm$Plot, .SD, .SDcols = c('LUI')]))$cosup
+  # }
+  #if (env_corr == FALSE){
+#        quanti.coord <- supcol(pca, scale(env_data_lui[Plot %in% cwm$Plot, LUI]))$cosup * pca$eig[1:naxes]^2
+#   }
+    for (i in 1:naxes) {
+       if (sum(pca_stand$li[, i] == -pca$li[, i]) != 0) {
+       quanti.coord[, i] <- -quanti.coord[, i]
+       }}
+        
+        
+ind <- data.frame(pca_stand$l1)
+var <- pca_stand$co
+colnames(var) <- c("x", "y")
+colnames(ind) <- c("x", "y")
+colnames(quanti.coord) <- c("x", "y")
+r <- min((max(ind[, "x"]) - min(ind[, "x"])/(max(var[, "x"]) - 
+                                               min(var[, "x"]))), (max(ind[, "y"]) - min(ind[, "y"])/(max(var[, 
+                                                                                                            "y"]) - min(var[, "y"]))))
+if(is.na(Labels)){
+  Labels = traits
+}
+  names(Labels)  = traits
+
+if (is.na(annot)){
+  Criteria_label = ifelse(keep_criteria$enough_support, 'Criteria met', 'Criteria not met!')
+  if (keep_criteria$partial == TRUE & keep_criteria$enough_support == TRUE){
+    Criteria_label = paste(Criteria_label, 'but partial only', sep = ' ')
+  }
+  
+  Criteria_label = paste(Criteria_label, '\n Axis1 x LUI: p =', keep_criteria$LUI.Axis1,
+                         '\n Axis2 x LUI: p =', keep_criteria$LUI.Axis2, sep = '')
+}
+else{
+  Criteria_label =  annot
+}
+
+plot_pca_12 = ggplot(ind, aes(x, y = y, shape =  substr(cwm$Plot, 1, 1),
+                   color = substr(cwm$Plot, 1, 1))) +
+  xlim(range(c(1.3*var$x*r*0.7, ind$x, quanti.coord$x*r*0.7))) +
+  ylim(range(c(1.3*var$y*r*0.7, ind$y, quanti.coord$y*r*0.7))) +
+  geom_point() + theme_bw() +
+  xlab(paste('PC1 (', round(pca$eig[1]/sum(pca$eig), 2)*100, '%)', sep = '')) +
+  ylab(paste('PC2 (', round(pca$eig[2]/sum(pca$eig), 2)*100, '%)', sep = '')) +
+  scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region') +
+  scale_shape_discrete( breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region') +
+  geom_hline(yintercept = 0, lwd = 0.1) + geom_vline(xintercept = 0, lwd = 0.1) +
+  geom_segment(data = var*r*0.7, aes(x = 0, y = 0, xend = x, yend = y), inherit.aes = F, color = 'steelblue',
+               arrow = arrow(length = unit(0.1, "inches"))) +
+  geom_text(data = var*r*0.7, aes(x = 1.2*x, y = 1.1*y, label = Labels[rownames(var)]), inherit.aes = F, color = 'steelblue') + 
+  geom_segment(data = quanti.coord*r*0.7, aes(x = 0, y = 0, xend = x, yend = y), inherit.aes = F, color = 'darkred',
+              arrow = arrow(length = unit(0.1, "inches"))) +
+  geom_text(data = quanti.coord*r*0.7, aes(x = 1.2*x, y = 1.1*y, label = 'LUI'), inherit.aes = F, color = 'darkred') +
+    annotate(geom = 'label', x = -Inf, y =+Inf, label = Criteria_label,
+           hjust = -0.1, vjust = 1.5)
+
+
+     if (naxes >= 3){
+
+     plot_pca_13 <- fviz_pca(pca_stand, habillage = substr(cwm$Plot, 1, 1), alpha.ind = 1, geom = c("point"), xlim = c(-5, 5),  axes = c(1, 3), 
+       palette = viridis(3, begin = 0.3), geom.var = c("arrow", "text"))
+    plot_pca_13 <- fviz_add(plot_pca_13, quanti.coord, axes = c(1, 3), "arrow", color = "black", linetype = "solid", repel = T, addlabel = T)
+    
+    
+           res = list(PCA = pca_stand, plot12 = plot_pca_12, plot13 = plot_pca_13, criteria = keep_criteria)
+     } else {
+       
+       
+            res = list(PCA = pca_stand, plot12 = plot_pca_12, criteria = keep_criteria)
+
+     }
+   return(res)
+}
+```
+
+### Plants, above- and below-ground
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+### With all traits
+print_table(Hypothesis_table[Group %in% c('Plants (AG)','Plants (BG)'),])
+library(viridisLite)
+
+print('Plants, All')
+
+all_plant_traits = c("LDMC" , "LeafN", "LeafP", "Seed_mass", "SLA" , "Root_tissue_density")
+pca_plants_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[, ..all_plant_traits])], all_plant_traits , 'SLA','')
+pca_plants_all = run_group_pca(env_corr = env_corr, all_cwm_miced, all_plant_traits , 'SLA','')
+pca_plants_all$plot12
+pca_plants_all$criteria
+
+ggsave(plot = pca_plants_all$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Plant_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_plants_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Plant_com_pca_raw.pdf', width = 6, height = 6)
+
+```
+
+## Bacteria & fungi
+
+```{r eval=T, echo=FALSE, fig.show="hold", message=FALSE, warning=FALSE, out.width="50%"}
+print_table(Hypothesis_table[Group %in% c('Microbes'),])
+traits_Microbes = c("mic_Bvolume"     , "mic_Bdoubling_h" ,"mic_Bgenome_size"  , 
+                  "mic_O.C.ratio" , "mic_FB" ,"mic_Fpathotroph"
+                  )
+labels_Microbes =  c("Cell volume (bacteria)"     , 
+                     "Doubling time (bacteria)" ,
+                     "Genome size (bacteria)"  , 
+                      "Oligotrophic:copiotrophic ratio (bacteria)" , 
+                     "Fungi:bacteria ratio" ,
+                     "Proportion plant pathogen (fungi)"
+                  )
+pca_mic = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Microbes, 'mic_Fpathotroph', '', Labels = labels_Microbes)
+pca_mic_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Microbes])], traits_Microbes, 'mic_Fpathotroph', '', Labels = labels_Microbes)
+pca_mic$plot12
+#pca_mic$plot13
+pca_mic$criteria
+
+ggsave(plot = pca_mic_raw$plot12, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Microbes_com_pca_raw.pdf', width = 6, height = 6)
+ggsave(plot = pca_mic$plot12, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Microbes_com_pca.pdf', width = 6, height = 6)
+
+```
+
+## Protists
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Protists',Group),])
+
+
+```
+
+## Arthropods, above-ground
+### Herbivores
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Arthropods', Group),])
+
+labels_arthro_herb =  c("Dispersal"     , 
+                     "Body size" ,
+                     "Generalism"  , 
+                      "Gen. per year" 
+                  )
+pca_arthro_herb_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Arthropods_above_herb])], traits_Arthropods_above_herb, 'Ah_Dispersal', '', Labels = labels_arthro_herb)
+pca_arthro_herb = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Arthropods_above_herb, 'Ah_Dispersal', '', Labels = labels_arthro_herb)
+pca_arthro_herb$plot12
+pca_arthro_herb_raw$plot12
+ggsave(plot = pca_arthro_herb$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_herb_AG_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_arthro_herb_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_herb_AG_com_pca_raw.pdf', width = 6, height = 6)
+
+
+labels_arthro_below_herb =  c("Dispersal"     , 
+                           "Body size" 
+                  )
+pca_arthro_herb_below = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Arthropods_below_herb, 'Ah_b_Dispersal', '', Labels = labels_arthro_herb)
+
+pca_arthro_herb_below_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Arthropods_below_herb])], traits_Arthropods_below_herb, 'Ah_b_Dispersal', '', Labels = labels_arthro_herb)
+pca_arthro_herb_below$plot12
+  pca_arthro_herb_below$criteria
+  
+ggsave(plot = pca_arthro_herb_below$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_herb_BG_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_arthro_herb_below_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_herb_BG_com_pca_raw.pdf', width = 6, height = 6)
+
+labels_but =  c("Generalism"     , 
+                     "Size" ,
+                 "Gen. per year" ,
+                     "Hibernation stage"  , 
+                                     "Flight period"  
+                  )
+pca_but_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[, ..traits_Butterflies])], traits_Butterflies, 'but_flight', 'but_Eggs')
+pca_but = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Butterflies, 'but_flight', 'but_Eggs')
+pca_but$plot12
+pca_but$criteria
+
+print_table(Hypothesis_table[Group  %in% c('Arthropods (herbivores)', 'Butterflies'),])
+
+ggsave(plot = pca_but$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Butterflies_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_but_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Butterflies_com_pca_raw.pdf', width = 6, height = 6)
+
+```
+
+### Predators
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Arthro',Group) & !grepl('herbi', Group),])
+
+pca_arthro_pred_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Arthropods_above_omni_carni])], traits_Arthropods_above_omni_carni, 'Aoc_Dispersal', '', Labels = c('Dispersal', 'Body size'))
+pca_arthro_pred = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Arthropods_above_omni_carni, 'Aoc_Dispersal', '', Labels = c('Dispersal', 'Body size'))
+pca_arthro_pred$plot12
+
+ggsave(plot = pca_arthro_pred$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_oc_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_arthro_pred_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_oc_com_pca_raw.pdf', width = 6, height = 6)
+
+
+pca_arthro_pred_below = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Arthropods_below_omni_carni, 'Aoc_b_Dispersal', '', Labels = c('Dispersal', 'Body size'))
+pca_arthro_pred_below_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Arthropods_below_omni_carni])], traits_Arthropods_below_omni_carni, 'Aoc_b_Dispersal', '', Labels = c('Dispersal', 'Body size'))
+pca_arthro_pred_below$plot12
+
+ggsave(plot = pca_arthro_pred_below$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_oc_BG_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_arthro_pred_below_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Arthro_oc_BG_com_pca_raw.pdf', width = 6, height = 6)
+
+```
+
+### Protists
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+#plot_com_protist_P = ggplot(all_cwm_miced, aes(Ps_Size, Ps_Naked)) + geom_point(aes(color = #substr(all_cwm_miced$Plot, 1, 1))) +
+#  ylab('Morphology: no teste\n(slow to fast)') + xlab('Cell size\n(fast to slow)') +
+#  theme_bw()  +
+#  scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', #'North'), name = 'Region') +
+#  geom_smooth( method = 'lm', aes(Ps_Size, Ps_Naked), inherit.aes  = F, lwd = 0.1) +
+#    stat_fit_glance(
+#                  method = "cor.test",
+#                  label.y = "bottom",
+#                  method.args = list(formula = ~ x + y),
+#                  mapping = aes(label = sprintf('r[Pearson]~"="~%.3f~~italic(P)~"="~%.2g',
+#                                stat(estimate), stat(p.value))),
+#                  parse = TRUE)
+#
+```
+
+## Birds
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+
+print_table(Hypothesis_table[grepl('Birds', Group),])
+#pca_birds_h= run_group_pca(env_corr = env_corr,all_cwm_miced, traits_Birds_herb, 'Bh_TOffsprings', '')
+#pca_birds_h$plot12
+#pca_birds_h$plot13
+#pca_birds_h$criteria
+
+birds_labels = c('Body mass', 'Incubation time', 'Offspring max', 'Longevity', 'Generation time')
+pca_birds_raw= run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[,..traits_Birds_insect])], traits_Birds_insect, 'Bi_TOffsprings', '', Labels = birds_labels)
+pca_birds_all= run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Birds_insect, 'Bi_TOffsprings', '', Labels = birds_labels)
+pca_birds_all$plot12
+pca_birds_all$criteria
+
+
+ggsave(plot = pca_birds_all$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Birds_i_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_birds_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Birds_i_com_pca_raw.pdf', width = 6, height = 6)
+
+#pca_birds_p= run_group_pca(env_corr = env_corr,all_cwm_miced, traits_Birds_pred, 'Bp_TOffsprings', '')
+#pca_birds_p$plot12
+#pca_birds_p$plot13
+#pca_birds_p$criteria
+
+```
+
+## Mites & collembola
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Mites', Group),])
+
+mites_labels = c('Habitat specialisation', 'Sexual repro', 'Body mass', 'Feeding specialisation', 'Days to adult')
+pca_mites_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[, ..traits_Mites_all])], traits_Mites_all, 'mites_DaysAdult', exclude_traits, Labels = mites_labels)
+pca_mites_all = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Mites_all, 'mites_DaysAdult', exclude_traits, Labels = mites_labels)
+pca_mites_all$plot12
+pca_mites_all$plot13
+pca_mites_all$criteria
+
+ggsave(plot = pca_mites_all$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Mites_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_mites_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Mites_com_pca_raw.pdf', width = 6, height = 6)
+
+#pca_mites_li = run_group_pca(env_corr = env_corr,all_cwm_miced, traits_Mites_litter_surface, 'mitesL_Sex', exclude_traits)
+#pca_mites_li$plot12
+#pca_mites_li$plot13
+
+```
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Coll', Group),])
+col_labels = c('Body size', 'Depth preference', 'Generations per year', 'Sexual reproduction')
+pca_coll_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[, ..traits_Coll_all])], traits_Coll_all, 'col_Depth', exclude_traits, Labels = col_labels)
+pca_coll_all = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Coll_all, 'col_Depth', exclude_traits, Labels = col_labels)
+pca_coll_all$plot12
+pca_coll_all$plot13
+pca_coll_all$criteria
+
+ggsave(plot = pca_coll_all$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Coll_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_coll_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Coll_com_pca_raw.pdf', width = 6, height = 6)
+
+
+```
+
+## Bats
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+print_table(Hypothesis_table[grepl('Bats', Group),])
+
+bats_labels = c('Body mass', 'Lifespan', 'Offspring')
+pca_bats_raw = run_group_pca(env_corr = env_corr, all_cwm_raw[complete.cases(all_cwm_raw[, ..traits_Bats])], traits_Bats, 'bat_offspring', exclude_traits, Labels = bats_labels)
+pca_bats_all = run_group_pca(env_corr = env_corr, all_cwm_miced, traits_Bats, 'bat_offspring', exclude_traits, Labels = bats_labels)
+pca_bats_all$plot12
+pca_bats_all$plot13
+pca_bats_all$criteria
+
+
+
+ggsave(plot = pca_bats_all$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Bats_com_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_bats_raw$plot12,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/Bats_com_pca_raw.pdf', width = 6, height = 6)
+```
+
+# Try to do a SEM
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = T, Data = dd){
+  # This function takes a model formula without parameters
+  # and creates all the parameter names for direct, indirect and total effects
+  model_init <- sem(model_raw,
+                    data = Data)
+  coefficients = data.table(parameterEstimates(model_init, standardized = T))
+  coefficients = coefficients[lhs != rhs,]
+  coefficients = coefficients[op == '~',]
+  
+  coefficients_lm = coefficients[op == '~',]
+  exo_var = unique(coefficients_lm$rhs[!(coefficients_lm$rhs %in% coefficients_lm$lhs)])
+  
+  effect_list = list()
+  model_lines = list()
+
+  for (group in unique(coefficients$lhs)){
+    # Write down main model line
+    RHS = coefficients[lhs == group, ]
+    right_hand = paste(paste(RHS$rhs, RHS$lhs, sep = '__'), '*', RHS$rhs, collapse = ' + ', sep = '')
+    lm_line = paste(group, '~', right_hand)
+    model_lines = append(model_lines, lm_line)
+    
+    for (exo in exo_var){
+    # Direct effect
+    direct = paste('Direct__', exo, '__', group, '__', trophic_levels[group], sep = '')
+    
+    direct_rhs = paste(' := ', exo, '__', group, sep = '')
+    direct_line = paste(direct, direct_rhs , sep = '')
+    model_lines = append(model_lines, direct_line)
+    effect_list = append(effect_list, direct)
+    
+    # Indirect effect
+    RHS_indirect = RHS[!(rhs %in% exo_var),]
+    if (nrow(RHS_indirect) > 0){
+      indirect = paste('Indirect__', exo, '__', group, '__', trophic_levels[group], sep = '')
+      indirect_rhs = paste( 
+        paste('Total__', exo, '__', RHS_indirect[, rhs], '__', trophic_levels[RHS_indirect[, rhs]], sep = ''), 
+        '*',
+        paste(RHS_indirect[, rhs], '__', group, sep = ''), sep = '', collapse = ' + ')
+      indirect_line = paste( indirect , indirect_rhs, sep = ' := ')
+      model_lines = append(model_lines, indirect_line)
+      effect_list = append(effect_list, indirect)
+      
+      # Total effect
+      total = paste('Total__', exo, '__', group, '__', trophic_levels[group], sep = '')
+
+      total_rhs = paste(direct, indirect, sep = ' + ')
+      total_line = paste(total, total_rhs, sep = ' := ')
+  
+      model_lines = append(model_lines, total_line)
+      effect_list = append(effect_list, total)
+       
+      
+    }
+    else {
+      total = paste('Total__', exo, '__', group, '__', trophic_levels[group], sep = '')
+      total_line = paste(total, direct, sep = ' := ')
+      model_lines = append(model_lines, total_line)
+      effect_list = append(effect_list, total)
+      
+    }
+  }
+  }
+  
+  effect_list = unlist(effect_list)
+  overall_effects = list()
+  for (trophic_lvl in unique(trophic_levels[coefficients$lhs])){
+    for (type in c('Direct', 'Indirect', 'Total')){
+          print(type)
+      if (!(type == 'Indirect' & trophic_lvl == 0)){
+                  print('lala')
+      for (exo in exo_var){
+        print('tut')
+      effect = paste(type, exo, trophic_lvl, sep = '__')
+      relevant_effects = effect_list[grepl(type, effect_list) & grepl(trophic_lvl, effect_list) & grepl(exo, effect_list)]
+      rhs = paste('(', 
+                  paste(relevant_effects, collapse = ' + '),
+                  ')/', length(relevant_effects))
+      overall_effects = append(overall_effects, paste(effect, rhs, sep = ':='))
+    }
+   }}
+  }
+  whole_model = paste(c(unlist(model_lines), unlist(overall_effects)), collapse = ' \n ')
+  
+  # Add fixed variance
+    whole_model = paste(c(whole_model, paste(exo_var[1], '~~ 1*', exo_var[1])), sep = ' \n ')
+
+  return(whole_model)
+  
+}
+
+
+```
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+## Put all the PCA axes together
+dd_not_miced = Reduce(function(...) merge(..., all = TRUE, by = 'Plot'), 
+  list( data.table(plant                =            pca_plants_raw$PCA$li[,1], Plot = rownames(           pca_plants_raw$PCA$li)),
+        data.table(Arth_herb            =       pca_arthro_herb_raw$PCA$li[,1], Plot = rownames(      pca_arthro_herb_raw$PCA$li)),
+        data.table(Arth_herb_below      = pca_arthro_herb_below_raw$PCA$li[,1], Plot = rownames(pca_arthro_herb_below_raw$PCA$li)),
+        data.table(Arth_omnicarni       =       pca_arthro_pred_raw$PCA$li[,2], Plot = rownames(      pca_arthro_pred_raw$PCA$li)),
+        data.table(Arth_omnicarni_below = pca_arthro_pred_below_raw$PCA$li[,1], Plot = rownames(pca_arthro_pred_below_raw$PCA$li)),
+        data.table(Microbes             =               pca_mic_raw$PCA$li[,1], Plot = rownames(              pca_mic_raw$PCA$li)),
+        data.table(Protists_patho       =               all_cwm_raw$P_patho,    Plot =               all_cwm_raw$Plot),
+        data.table(Protists_bact        =              -all_cwm_raw$Pb_Size,    Plot =               all_cwm_raw$Plot),
+        data.table(Protists_sec         =              -all_cwm_raw$Ps_Size,    Plot =               all_cwm_raw$Plot),
+        data.table(Mites                =             pca_mites_raw$PCA$li[,1], Plot = rownames(            pca_mites_raw$PCA$li)),
+        data.table(Coll                 =              pca_coll_raw$PCA$li[,1], Plot = rownames(             pca_coll_raw$PCA$li)),
+        data.table(But                  =               pca_but_raw$PCA$li[,1], Plot = rownames(              pca_but_raw$PCA$li)),
+        data.table(BirdsI               =            -pca_birds_raw$PCA$li[,1], Plot = rownames(            pca_birds_raw$PCA$li)),
+        data.table(Bats                 =              pca_bats_raw$PCA$li[,1], Plot = rownames(             pca_bats_raw$PCA$li)),
+        env_data_lui[,.SD, .SDcols = c('LUI', 'LII', 'Fertil', 'Mowing', 'Grazing', 'Plot')]))
+
+dd = data.table(
+  plant =    pca_plants_all$PCA$li[,1],
+  Arth_herb = pca_arthro_herb$PCA$li[,1],
+  Arth_herb_below = pca_arthro_herb_below$PCA$li[,1],
+  Arth_omnicarni = pca_arthro_pred$PCA$li[,2],
+  Arth_omnicarni_below = pca_arthro_pred_below$PCA$li[,1],
+  Microbes = pca_mic$PCA$li[,1],
+  Protists_patho = all_cwm_miced$P_patho,
+  Protists_bact  = -all_cwm_miced$Pb_Size,
+  Protists_sec   = -all_cwm_miced$Ps_Size,
+  Mites = pca_mites_all$PCA$li[,1],
+  Coll = pca_coll_all$PCA$li[,1],
+  But = pca_but$PCA$li[,1],
+  BirdsI = -pca_birds_all$PCA$li[,1],
+  Bats = pca_bats_all$PCA$li[,1],
+  LUI = env_data_lui$LUI,
+  LII = env_data_lui$LII,
+  Fertil = env_data_lui$Fertil ,
+  Mowing = env_data_lui$Mowing,
+  Grazing = env_data_lui$Grazing
+)
+
+
+  
+dd = dd[, lapply(.SD, function(x){as.numeric(scale(x))})]
+dd = mice::complete(mice(dd, printFlag = FALSE))
+PCA_pca = dudi.pca(dd[,  c("plant", "Arth_herb", "Arth_omnicarni", 
+                           "Arth_omnicarni_below","Microbes",  "Protists_patho",  "Protists_bact", 
+                           "Protists_sec",  "Mites", "Coll", "But",   "BirdsI",  "Bats")],
+                   scannf =  F, nf = 3)
+quanti.coord <- supcol(PCA_pca, scale(env_data_lui[, c( 'LUI')]))$cosup * PCA_pca$eig[1:3]^2
+pca_pca_plot = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow', 'text'), 
+                       habillage = substr(env_data_lui$Plot, 1, 1), palette = my_palette, repel = TRUE)
+pca_pca_plot <- fviz_add(pca_pca_plot, quanti.coord, axes = c(1, 2), geom = "arrow", color = "black", linetype = "solid", addlabel = F)
+pca_pca_plot
+
+
+dd_miced_na_omit = dd_not_miced[complete.cases(dd_not_miced[, c("plant", "Arth_herb", "Arth_omnicarni", 
+                           "Arth_omnicarni_below","Microbes",  "Protists_patho",  "Protists_bact", 
+                           "Protists_sec",  "Mites", "Coll", "But",   "BirdsI",  "Bats")]),  c("plant", "Arth_herb", "Arth_omnicarni", 
+                           "Arth_omnicarni_below","Microbes",  "Protists_patho",  "Protists_bact", 
+                           "Protists_sec",  "Mites", "Coll", "But",   "BirdsI",  "Bats", 'Plot')]
+PCA_pca_raw = dudi.pca(dd_miced_na_omit[, -'Plot'],
+                   scannf =  F, nf = 3)
+quanti.coord_raw <- supcol(PCA_pca_raw, 
+                           scale(env_data_lui[Plot %in% dd_miced_na_omit$Plot, c( 'LUI')]))$cosup * PCA_pca_raw$eig[1:3]^2
+pca_pca_plot_raw = fviz_pca(PCA_pca_raw, geom =c("point"),geom.var = c('arrow', 'text'), 
+                       habillage = substr(dd_miced_na_omit$Plot, 1, 1), palette = my_palette, repel = TRUE)
+pca_pca_plot_raw <- fviz_add(pca_pca_plot_raw, quanti.coord_raw, axes = c(1, 2), geom = "arrow", color = "black", linetype = "solid", addlabel = F)
+pca_pca_plot_raw
+
+ggsave(plot = pca_pca_plot ,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/All_groups_pca.pdf', width = 6, height = 6)
+ggsave(plot = pca_pca_plot_raw,file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/All_groups_pca_raw.pdf', width = 6, height = 6)
+
+
+
+Trophic_levels = list( "plant" = 0, 
+                       "Arth_herb" = 1,
+                       "Arth_herb_below" = 1,
+                       "But"  = 1,  
+                       "Arth_omnicarni" = 2,
+                       "Arth_omnicarni_below" = 3,
+                       "Microbes"  = 1,  
+                       "Protists_patho"  = 1,  
+                       "Protists_bact"  = 2, 
+                       "Protists_sec" = 2,  
+                       "Mites"  = 2, 
+                       "Coll"  = 2, 
+                       "BirdsI"  = 3,  
+                       "Bats"  = 3
+                      )
+
+```
+
+## Run above-ground model, simple
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+mod_AG =  "
+        plant ~ LUI 
+        
+        Arth_herb ~ LUI  + plant   
+        But       ~ LUI  + plant  
+
+        Arth_omnicarni ~ LUI + plant + But+Arth_herb
+        BirdsI ~ LUI + Arth_herb + plant  + But + Arth_omnicarni
+        Bats ~   LUI + Arth_herb + plant + But + Arth_omnicarni  
+
+        LUI  ~~ 1*LUI
+        
+"
+ model_init_AG <- sem(mod_AG,
+    data = dd
+  )
+# View(data.table(modificationindices(model_init_AG))[order(mi, decreasing = T), ])
+
+ model_AG = sem(autowrite_SEM_full(model_init_AG, Trophic_levels),
+                dd)
+
+ fitmeasures(model_AG, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+
+
+ ly2 <- matrix(c(
+# Pl1      aherb   but     Arth_omni       BirdsI   BirdsP bats LUI
+c(4,          5,     3,       3,              3,      5,   -2 ),
+c(0,          1.5,  1.5,     3,              4.5,     4.5,   0)), ncol = 2)
+
+ p =  semPaths(model_AG,  what = "std", whatLabels = 'no', layout = ly2, residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
+               node.width = 1)
+
+ pdf(file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/SEM_AG.pdf', width = 5)
+ plot(p)
+ dev.off()
+ 
+ 
+#est = data.table(parameterestimates(model_AG, boot.ci.type = 'bca'))
+#View(est[op == ':=' , list(label, est = round(est, 2), p = round(pvalue, 4))])
+
+```
+
+## Run above-ground model, full model
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+mod_AG_complex =  "
+        plant ~ Fertil + Grazing + Mowing 
+        
+        Arth_herb ~ Fertil + Grazing + Mowing   + plant   
+        But       ~ Fertil + Grazing + Mowing   + plant  
+      #  BirdsH    ~ Fertil + Grazing + Mowing   + plant 
+        
+        Arth_omnicarni ~ Fertil + Grazing + Mowing  + plant + But + Arth_herb
+
+        BirdsI ~ Fertil + Grazing + Mowing   + Arth_herb + Arth_omnicarni
+        Bats ~   Fertil + Grazing + Mowing   + Arth_herb  + plant +Arth_omnicarni
+
+     #   BirdsP ~  Fertil + Grazing + Mowing  +  Arth_herb  + plant + But + Arth_omnicarni
+
+        Fertil ~~ Grazing
+        Grazing ~~ Mowing 
+        Fertil ~~ Mowing 
+"
+ 
+ model_AG_complex_init = sem(mod_AG_complex, data = dd)
+ summary(model_AG_complex_init)
+ #View(data.table(modificationindices(model_AG_complex_init))[order(mi, decreasing = T), ])
+ fitmeasures(model_AG_complex_init, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+ 
+ model_AG_complex = sem(autowrite_SEM_full(model_AG_complex_init, Trophic_levels), dd)
+ 
+ 
+  ly_complex <- matrix(c(
+# Pl1    aherb   but   b1     Arth_omni    BirdsI   BirdsP bats LUI
+c(4,       1,    3,    5,        1,      3,     5,   1,    -2, -2.5, -2 ),
+c(1,       2,   2.5,   3,     3.8,       4.5,     5.2, 6,     0, 2, 4)), ncol = 2)
+    p =  semPaths(model_AG_complex,  what = "std", whatLabels = 'no', layout = ly_complex, residuals = F, edge.label.cex = 1)
+
+ est = data.table(parameterestimates(model_AG_complex, boot.ci.type = 'bca'))
+ 
+```
+
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# Get a visualisation of all the estimates
+est_AG = rbind(data.table(parameterestimates(model_AG, boot.ci.type = 'bca')),
+               data.table(parameterestimates(model_AG_complex, boot.ci.type = 'bca')))
+est_AG = est_AG[grepl('Direct', label) | grepl('Indirect', label) | grepl('Total', label), ]
+est_AG[, signif := ifelse(pvalue < 0.05, -1, 
+                          ifelse(pvalue < 0.1, 0, 1))]
+est_AG[, est := round(est, 2)]
+est_AG[, c('Type', 'Driver', 'Group', 'Trophic') := tstrsplit(label, '__')]
+est_AG[is.na(Trophic), c('Group', 'Trophic') := list(NA, Group)]
+
+est_AG_cast = dcast.data.table(est_AG[!is.na(Group),], Group + Type ~ Driver, value.var = 'est')
+p_AG_cast = dcast.data.table(est_AG[!is.na(Group),], Group + Type ~ Driver, value.var = 'signif')
+
+est_AG_cast = est_AG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)]
+p_AG_cast = p_AG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)]
+
+Est_kable <- kable_paper(kbl(est_AG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)], escape = FALSE))
+
+for (D in c('Fertil', 'Grazing', 'Mowing', 'LUI')){
+Est_kable <- column_spec(Est_kable, which(colnames(est_AG_cast) == D),
+  background = rgb(pal.fnc(scale01(unlist(p_AG_cast[,..D]))), maxColorValue=255),
+ # color =  rgb(pal.fnc(scale01(unlist(est_AG_cast[,..D]))), maxColorValue=255),
+  bold  = unlist(p_AG_cast[,..D]) == -1,
+  italic  = unlist(p_AG_cast[,..D]) ==1
+)
+}
+
+Est_kable
+```
+## Run below-ground model, simple
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+mod_BG =  "
+        plant ~ LUI 
+        
+        Protists_patho  ~ LUI + plant# + Microbes
+        Microbes   ~      LUI  + plant
+        Mites  ~          LUI  + plant
+        
+        Protists_bact  ~ LUI + plant + Microbes        
+    
+        Protists_sec  ~     LUI  + Protists_bact  + plant + Microbes
+        Coll   ~            LUI + Protists_sec + Protists_bact + Microbes + plant + Microbes
+        
+        Arth_omnicarni_below ~ LUI + Mites + Coll + Protists_sec + plant + Protists_bact + Protists_patho 
+        
+        LUI  ~~1*LUI
+"
+
+ model_BG_init <- sem(mod_BG,
+    data = dd)
+#View(data.table(modificationindices(model_BG_init))[order(mi, decreasing = T), ])
+fitmeasures(model_BG_init, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+
+ model_BG = sem(autowrite_SEM_full(model_BG_init, Trophic_levels),
+                dd)
+ 
+ model_BG
+ fitmeasures(model_BG, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+
+ #summary(model_BG)
+ #View(data.table(modificationindices(model_BG))[order(mi, decreasing = T), ])
+ #fitmeasures(model_BG, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+  
+ ly2 <- matrix(c(
+# Pl1   Mic  Pro1   ProB ,   Pro2;    Mites    Coll  Arth_carni  LUI
+c(4,    3.5,  4.5,      2.5,    4.5,    5.5,     3.5,       4,    -2),
+c(0, -1.5,  -1.5,   -3,      -3,       -3,   -3,   - 4.5,   0)), ncol = 2)
+#c( 4,      3,      5,        1,         3,     6,    5,        1,        -2,    -2 ),
+#c(-1,    -2.5,    -3,     -4,      -3.5,    6,   -4,      -6,          0,     -2)
+
+ p =  semPaths(model_BG,  what = "std", whatLabels = 'no', layout = ly2, residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
+               node.width = 1)
+
+ pdf(file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/SEM_BG.pdf', width = 5)
+ plot(p)
+ dev.off()
+
+
+ est = data.table(parameterestimates(model_BG, boot.ci.type = 'bca'))
+#View(est[op == ':=', list(label, est = round(est, 2), p = round(pvalue, 4))])
+
+
+```
+
+## Run below-ground model, full lui components
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+mod_BG_complex =  "
+        plant ~ Mowing + Grazing + Fertil 
+        
+        Protists_patho  ~ Mowing + Grazing + Fertil + plant
+        Microbes   ~ Mowing + Grazing + Fertil   +plant
+        Mites  ~         Mowing + Grazing + Fertil  + plant
+        
+        Protists_bact  ~ Mowing + Grazing + Fertil  + plant + Microbes        
+    
+        Protists_sec  ~     Mowing + Grazing + Fertil  + Protists_bact  + plant + Microbes
+        Coll   ~            Mowing + Grazing + Fertil  + Protists_sec + plant 
+
+
+        Arth_herb_below ~   Mowing + Grazing + Fertil + Protists_sec + Microbes + plant  + Microbes
+
+        Arth_omnicarni_below ~ Mowing + Grazing + Fertil + Mites + Coll + Protists_sec + plant + Protists_bact + Protists_patho
+      
+        Mowing ~~ Grazing
+        Mowing ~~ Fertil
+        Grazing ~~ Fertil
+"
+
+ model_BG_complex_init <- sem(mod_BG_complex,
+    data = dd)
+
+ 
+ model_BG_complex_init
+   
+ summary(model_BG_complex_init)
+ #View(data.table(modificationindices(model_BG_complex))[order(mi, decreasing = T), ])
+ fitmeasures(model_BG_complex_init, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+  
+ 
+ model_BG_complex = sem(autowrite_SEM_full(model_BG_complex_init, Trophic_levels),
+                dd)
+ 
+
+ 
+ ly2 <- matrix(c(
+# Pl1   Mic   Pro1   Pro2       Mites    Coll  Arth_carni  LUI
+c(4,        3,    5,       1,       3,        5,     7,         1,    3,                -2, -2.5,-2 ),
+c(1,    - 2.5,  -3,    - 3.8,       -4.5,   -  5.2,   -5.7,     -6,    - 6.8,              0, 1,2)
+), ncol = 2
+)
+
+  p =  semPaths(model_BG_complex,  what = "std",  layout = ly2, whatLabels = 'no', residuals = F, edge.label.cex = 1)
+ plot(p)
+ 
+ est = data.table(parameterestimates(model_BG_complex, boot.ci.type = 'bca'))
+#View(est[op == ':=' & grepl('Fertil', label), list(label, est = round(est, 2), p = round(pvalue, 4))])
+
+
+```
+
+
+
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# Get a visualisation of all the estimates
+est_BG = rbind(data.table(parameterestimates(model_BG, boot.ci.type = 'bca')),
+               data.table(parameterestimates(model_BG_complex, boot.ci.type = 'bca')))
+est_BG = est_BG[grepl('Direct', label) | grepl('Indirect', label) | grepl('Total', label), ]
+est_BG[, signif := ifelse(pvalue < 0.05, -1, 
+                          ifelse(pvalue < 0.1, 0, 1))]
+est_BG[, est := round(est, 2)]
+est_BG[, c('Type', 'Driver', 'Group', 'Trophic') := tstrsplit(label, '__')]
+est_BG[is.na(Trophic), c('Group', 'Trophic') := list(NA, Group)]
+
+est_BG_cast = dcast.data.table(est_BG[!is.na(Group),], Group + Type ~ Driver, value.var = 'est')
+p_BG_cast = dcast.data.table(est_BG[!is.na(Group),], Group + Type ~ Driver, value.var = 'signif')
+
+est_BG_cast = est_BG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)]
+p_BG_cast = p_BG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)]
+
+Est_kable <- kable_paper(kbl(est_BG_cast[, list(Group, Type, Fertil, Grazing, Mowing, LUI)], escape = FALSE))
+
+for (D in c('Fertil', 'Grazing', 'Mowing', 'LUI')){
+Est_kable <- column_spec(Est_kable, which(colnames(est_BG_cast) == D),
+  background = rgb(pal.fnc(scale01(unlist(p_BG_cast[,..D]))), maxColorValue=255),
+ # color =  rgb(pal.fnc(scale01(unlist(est_AG_cast[,..D]))), maxColorValue=255),
+  bold  = unlist(p_BG_cast[,..D]) == -1,
+  italic  = unlist(p_BG_cast[,..D]) ==1
+)
+}
+
+Est_kable
+```
+
+```{r, echo = FALSE, warning=FALSE, eval = F,fig.show="hold", out.width="80%"}
+# Average by trophic level
+
+# list trophic levels, AG and BG
+trophic_lvls = c( "LUI" = "LUI",
+                  "plant" = 0, 
+                       "Arth_herb" = 1,
+                       "But"  = 1,  
+                       "Arth_omnicarni" = 2,
+                       "Arth_omnicarni_below" = 3,
+                       "Microbes"  = 1,  
+                       "Protists_patho"  = 1,  
+                       "Protists_bact"  = 2, 
+                       "Protists_sec" = 2,  
+                       "Mites"  = 2, 
+                       "Coll"  = 2, 
+                       "BirdsI"  = 3,  
+                       "Bats"  = 3
+                      )
+
+## Create the node position
+nodes0 = data.table(label = c('LUI', 'Primary producers', 'Primary consumers','Omnivores/Sec', 'Sec/top consumers'),
+                        trophic_l = c('LUI', '0', '1', '2', '3'),
+                        trophic_r = c('LUI', '0', '1', '2', '3'),
+                        X = c(0, 1, 1, 1, 1),
+                        Y = c(0, 0, 1, 2, 3)
+                   )
+
+nodes = rbind(nodes0[, list(label, trophic_l,trophic_r, X, Y, Where = 'AG')], 
+              nodes0[, list(label, trophic_l,trophic_r, X, Y = -Y, Where = 'BG')])
+
+# Removing top consumers in the soil and omnivores above-ground
+nodes = nodes[!( (Where == 'BG' & label == 'Top predator')) ,]
+
+## Create the edges
+# Get the estimates
+par_AG = data.table(parameterEstimates(model_AG))[, 'Where' := 'AG',]
+par_BG = data.table(parameterEstimates(model_BG))[, 'Where' := 'BG',]
+all_par = rbind(par_AG, par_BG)
+# Average the estimates by trophic level
+all_par$trophic_l = as.character(trophic_lvls[all_par$lhs])
+#all_par$size = as.numeric(Size[all_par$lhs])
+
+all_par$trophic_r = as.character(trophic_lvls[all_par$rhs])
+
+all_par$trophic = as.numeric(all_par$trophic_l)
+
+mean_est = all_par[trophic_r == 'LUI' & trophic_l != 'LUI'   | 
+                  (op == "~" & !is.na(trophic_l) & as.numeric(trophic_l) == as.numeric(trophic_r)+1), 
+                  list('Estimate' = mean(est),
+                       'SE_easy' = mean(se),
+                       'SE_combined' = sqrt(combinevar(est, s_squared = se^2, n = rep(150, length(est)))[2])),
+                  by = c('trophic_l', 'trophic_r', 'Where')]
+mean_est = mean_est[, c('ci.lower', 'ci.upper', 'pval') :=
+                      list(Estimate - 1.96*SE_combined,
+                           Estimate + 1.96*SE_combined,
+                           pval = 2 * (1 - pnorm(abs(Estimate/SE_combined))))]
+
+mean_est = mean_est[trophic_l != trophic_r,]
+
+# What about individual groups
+library(fishmethods)
+all_par$n = 150
+mean_est_per_group = all_par[trophic_r == 'LUI' |
+                  ( as.numeric(trophic_l) == as.numeric(trophic_r)+1), 
+                  list('Estimate' = mean(est),
+                       'SE_easy' = mean(se),
+                       'SE_combined' = sqrt(combinevar(est, s_squared = se^2, n = n))),
+                  by = c('trophic_r', 'lhs','Where')]
+
+mean_est_per_group = mean_est_per_group[, c('ci.lower', 'ci.upper', 'pval') :=
+                      list(Estimate - 1.96*SE_combined,
+                           Estimate + 1.96*SE_combined,
+                           pval = 2 * (1 - pnorm(abs(Estimate/SE_combined))))]
+
+# Pool edges and nodes
+mean_est = merge(mean_est, nodes[, list(trophic_r, X, Y, Where)], by = c('trophic_r','Where'), all = T)
+mean_est = merge(mean_est, nodes[, list(trophic_l, Xend = X, Yend = Y, Where)], by = c('trophic_l','Where'), all = T)
+
+mean_est[X == 0, c('X', 'Xend') := list(X+0.2, Xend-0.2)]
+mean_est[trophic_r != 'LUI', c('Y', 'Yend') := list(Y+0.3*sign(Yend), Yend-0.3*sign(Yend))]
+
+tot = rbind(nodes, mean_est, fill = T)
+tot[, Alpha := factor(cut(pval, breaks = c(0, 0.05, 0.1, 0.2, 1), labels = c('p < 0.05', 'p < 0.1','p < 0.2', 'N.S.'),
+                          ), levels = c( 'N.S.', 'p < 0.2','p < 0.1', 'p < 0.05'))]
+library(ggnetwork)
+
+#gg = ggplot(tot, aes(x = X, y = Y*2, xend = Xend, yend = Yend*2, label = label)) +
+# theme_blank() +
+# geom_nodes(data = tot[!is.na(label),],size = 8,shape = 0)+
+# geom_nodetext( fontface = "bold"#, label = ''
+#                ) +
+# geom_edges(arrow = arrow( type = "closed",ends = "last"),
+#            aes(color = Estimate, size = sqrt(abs(Estimate)), scale = sqrt(abs(Estimate))#, alpha = Alpha
+#                )) +
+# scale_alpha_binned(range = c(0.4, 1)) +
+# scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)
+#plot(gg)
+#ggsave(plot = gg, '/Users/Margot/Desktop/fig.pdf', height = 11, width = 10)
+
+```
+
+### Use the parameters defined in the simple SEM
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+predef_par_BG = data.table(parTable(model_BG))[op == ':=', .SD, .SDcols = c("label" , "plabel" ,"start",  "est" ,   "se")][label != 'T.p_0',]
+predef_par_AG = data.table(parTable(model_AG))[op == ':=', .SD, .SDcols = c("label" , "plabel" ,"start",  "est" ,   "se")]
+
+predef_par = rbind(predef_par_BG[, where := 'BG'],
+                   predef_par_AG[, where := 'AG'])
+
+predef_par[!grepl('mean', label), c('In_Direct', 'Driver', 'Group', 'Trophic_lvl') := tstrsplit(gsub('\\.', '_', label), split = '__')]
+#predef_par[grepl('mean', label), c('In_Direct', 'Trophic_lvl') := tstrsplit(gsub('mean_', '', label), split = '_')]
+predef_par[, c('pval') := 2 * (1 - pnorm(abs(est/se)))]
+predef_par$Trophic_lvl = as.numeric(predef_par$Trophic_lvl)
+predef_par[is.na(Trophic_lvl), c('Trophic_lvl', 'Group') := list(Group, NA)]
+
+data_to_plot = predef_par[is.na(Group),]
+data_to_plot[, Yend := ifelse(where == 'BG', -Trophic_lvl, Trophic_lvl)]
+
+# All effects together
+library(scales)
+gg_effects = ggplot() +
+  geom_edges(data=data_to_plot, arrow = arrow( type = "closed",ends = "last",length = unit(0.1, "inches")),
+             aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, linetype = pval>0.05, color = est, size = est)) +
+  theme_blank(base_size = 5) + 
+  theme(legend.position = 'bottom',title.position = "top", legend.direction = 'horizontal') +
+    facet_wrap(~In_Direct, ncol = 1) +
+  scale_linetype(breaks = c(TRUE, FALSE), labels = c('p>0.05', 'p<0.05'), name = "Significance") +
+  scale_size_continuous(range = c(0.5, 4), breaks=pretty_breaks(5),  name = 'Estimate') +
+  scale_color_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0, breaks=pretty_breaks(5), name = 'Estimate') +
+  guides(color = guide_legend(direction = "horizontal",
+      title.position = "top"), size = guide_legend(direction = "horizontal",
+      title.position = "top"),
+       linetype = guide_legend(direction = "horizontal",
+      title.position = "top")) +
+  theme_blank()+  theme(legend.position = 'bottom')+
+  xlab('Trophic level') + ylab('Direct LUI effects')
+
+
+ggsave(gg_effects, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/gg_SEM_effects.pdf', width = 5, height = 12)
+
+formula <- y ~ x
+gg_individual_groups = ggplot(data=predef_par[!is.na(Group),], aes(x = Trophic_lvl, y = est, ymin = est-se, ymax = est+se)) +
+  geom_smooth(formula = formula, method = "lm", mapping = aes(weight = 1/se), 
+              color = "black", show.legend = FALSE)+
+  geom_point( position = position_dodge(width = 0.3), aes( group = Group)) +
+  geom_errorbar(width = 0.1, position = position_dodge(width = 0.3), aes( group = Group))+
+   facet_wrap(~In_Direct, ncol = 1) +
+  theme_bw() +
+  theme(legend.position = 'bottom')+
+  xlab('Trophic level') + ylab('Estimate') +
+  stat_poly_eq(aes(label = paste(paste(..eq.label.., ..rr.label.., sep = "~~~"),  stat(p.value.label), sep = '\n')), 
+               label.x.npc = "left", label.y.npc = 0.1,
+               formula = formula, parse = TRUE, size = 3)
+#  theme(legend.position = 'bottom',title.position = "top", legend.direction = 'horizontal') +
+#   
+#  scale_linetype(breaks = c(TRUE, FALSE), labels = c('p>0.05', 'p<0.05'), name = "Significance") +
+#  scale_size_continuous(range = c(0.5, 4), breaks=pretty_breaks(5),  name = 'Estimate') +
+#  scale_color_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0, breaks=pretty_breaks(5), name #= 'Estimate') +
+#  guides(color = guide_legend(direction = "horizontal",
+#      title.position = "top"), size = guide_legend(direction = "horizontal",
+#      title.position = "top"),
+#       linetype = guide_legend(direction = "horizontal",
+#      title.position = "top")) +
+ # theme_blank()+  
+  
+
+
+## Direct effects
+#print('Direct effects')
+#ggplot(data_to_plot[In_Direct == 'Direct',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + #facet_wrap(~Driver) +
+#  theme_bw() + 
+#  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+#             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+#    scale_alpha_discrete(range =  c(0.6,1)) +
+#    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+#  xlab('Trophic level') + ylab('Direct LUI effects')
+#
+#
+#summary(lm(est ~ Trophic_lvl, weights = 1/predef_par[In_Direct == 'Direct' & Driver == 'LUI',]$se,  
+#           data = predef_par[In_Direct == 'Direct' & Driver == 'LUI',]))
+#summary(lm(est ~ Trophic_lvl, weights = 1/predef_par[In_Direct == 'Direct' & Driver == 'LUI' & Trophic_lvl != 0,]$se,  
+#           data = predef_par[In_Direct == 'Direct' & Driver == 'LUI' & Trophic_lvl != 0,]))
+#
+#
+## Total effects
+#print('Total effects')
+#
+#ggplot(data_to_plot[In_Direct == 'Total',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + #facet_wrap(~Driver) +
+#  theme_bw() + 
+#  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+#             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+#    scale_alpha_discrete(range =  c(0.6,1)) +
+#    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+#  xlab('Trophic level') + ylab('Total LUI effects')
+#
+#
+#summary(lm(est ~ Trophic_lvl, weights = 1/predef_par[In_Direct == 'Total' & Driver == 'LUI' ,]$se,  
+#           data = predef_par[In_Direct == 'Total'  & Driver == 'LUI',]))
+#summary(lm(est ~ Trophic_lvl, weights = 1/predef_par[In_Direct == 'Total'  & Driver == 'LUI' & Trophic_lvl != 0 ,]$se,  
+#           data = predef_par[In_Direct == 'Total'  & Driver == 'LUI' & Trophic_lvl != 0,]))
+#
+#
+#
+## Indirect effects
+#print('Indirect effects')
+#
+#ggplot(data_to_plot[In_Direct == 'Indirect',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + #facet_wrap(~Driver) +
+#  theme_bw() + 
+#  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+#             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+#    scale_alpha_discrete(range =  c(0.6,1)) +
+#    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+#  xlab('Trophic level') + ylab('Indirect LUI effects')
+#
+#
+#mod_I = lm(est ~ Trophic_lvl, weights = 1/predef_par[In_Direct == 'Indirect' & Driver == 'LUI' ,]$se,  
+#           data = predef_par[In_Direct == 'Indirect' & Driver == 'LUI',])
+#summary(mod_I)
+#
+```
+
+### Use the parameters defined in the complex SEMs
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+
+predef_par_BG = data.table(parTable(model_BG_complex))[op == ':=', .SD, .SDcols = c("label" , "plabel" ,"start",  "est" ,   "se")][label != 'T.p_0',]
+predef_par_AG = data.table(parTable(model_AG_complex))[op == ':=', .SD, .SDcols = c("label" , "plabel" ,"start",  "est" ,   "se")]
+
+predef_par = rbind(predef_par_BG[, where := 'BG'],
+                   predef_par_AG[, where := 'AG'])
+
+predef_par[!grepl('mean', label), c('In_Direct', 'Driver', 'Group', 'Trophic_lvl') := tstrsplit(gsub('\\.', '_', label), split = '__')]
+#predef_par[grepl('mean', label), c('In_Direct', 'Trophic_lvl') := tstrsplit(gsub('mean_', '', label), split = '_')]
+predef_par[, c('pval') := 2 * (1 - pnorm(abs(est/se)))]
+predef_par$Trophic_lvl = as.numeric(predef_par$Trophic_lvl)
+predef_par[is.na(Trophic_lvl), c('Trophic_lvl', 'Group') := list(Group, NA)]
+
+data_to_plot = predef_par[is.na(Group),]
+data_to_plot[, Yend := ifelse(where == 'BG', -Trophic_lvl, Trophic_lvl)]
+
+
+# Direct effects
+print('Direct effects')
+ggplot(data_to_plot[In_Direct == 'Direct',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + facet_wrap(~Driver) +
+  theme_bw() + 
+  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+    scale_alpha_discrete(range =  c(0.6,1)) +
+    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+  xlab('Trophic level') + ylab('Direct effects')
+
+
+
+# Total effects
+print('Total effects')
+
+ggplot(data_to_plot[In_Direct == 'Total',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + facet_wrap(~Driver) +
+  theme_bw() + 
+  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+    scale_alpha_discrete(range =  c(0.6,1)) +
+    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+  xlab('Trophic level') + ylab('Total effects')
+
+
+# Indirect effects
+print('Indirect effects')
+
+ggplot(data_to_plot[In_Direct == 'Indirect',], aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, alpha = pval<0.05)) + facet_wrap(~Driver) +
+  theme_bw() + 
+  geom_edges(arrow = arrow( type = "closed",ends = "last"),
+             aes(color = est, size = sqrt(abs(est)), scale = sqrt(abs(est)))) +
+    scale_alpha_discrete(range =  c(0.6,1)) +
+    scale_colour_gradient2(low = '#d73027', high = '#1a9850', mid = '#ffffbf', midpoint = 0)+
+  xlab('Trophic level') + ylab('Indirect effects')
+
+
+
+```
+
+### Check effect on EF MF
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# Get MF values
+EF_data = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Functions/may2019_grassland_functions.csv')
+
+EF_clean = EF_data[, list(Plot = ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), 0, substr(Plot, 4, 4),sep = '')),
+                          Biomass = as.numeric(scale(Biomass)),
+                          soilNflxs = as.numeric(scale(soilNflxs)),
+                          soilCflxs = as.numeric(scale(soilCflxs)),
+                          dung.decomposition = as.numeric(scale(dung.decomposition)),
+                          Litter.decomposition =  as.numeric(scale(Litter.decomposition)),
+                          PRI = as.numeric(scale(PRI)),
+                          NRI = as.numeric(scale(NRI)),
+                          Root.biomass = as.numeric(scale(Root.biomass)))
+                           ]
+EF_clean[PRI < -4, c('PRI', 'NRI') := NA]
+EF_clean = data.table(mice::complete(mice(EF_clean, printFlag = F)))
+
+EF_clean_corr = corrections(EF_clean,  Env_data = env_data_lui, region_corr = region_corr, env_corr = env_corr, env_variables = env_var)
+ 
+pca_mf = dudi.pca(EF_clean_corr[, -'Plot'],  scannf = FALSE, nf = 2)
+fviz_pca(pca_mf)
+
+pca_main = PCA_pca$li
+colnames(pca_main) = paste(colnames(pca_main), '_all', sep = '')
+pca_plants = pca_plants_all$PCA$li
+colnames(pca_plants) = paste(colnames(pca_plants), '_plants', sep = '')
+pca_mic_ = pca_mic$PCA$li
+colnames(pca_mic_) = paste(colnames(pca_mic_), '_mic', sep = '')
+
+dat = cbind(EF_clean_corr, pca_main)
+dat = cbind(dat, pca_plants)
+dat = cbind(dat, pca_mic_)
+
+dat$flux = dat$soilNflxs + dat$soilCflxs + dat$Biomass
+dat$fast = pca_mf$li$Axis1
+  
+mod_plants = lm(flux~Axis1_plants, data = dat)
+mod_all = lm(flux~Axis1_all, data = dat)
+mod_mic = lm(flux~Axis1_mic, data = dat)
+mod_aic = step(lm(flux~ Axis1_mic + Axis1_plants, data = dat))
+
+summary(mod_plants)
+summary(mod_all)
+summary(mod_mic)
+summary(mod_aic)
+
+plot(mod_all)
+
+```

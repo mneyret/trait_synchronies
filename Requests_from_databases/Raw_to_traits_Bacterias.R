@@ -113,29 +113,33 @@ Bact_data = fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Bacter
 Bact_traits_all = fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Bacteria/Bact_traits_all.csv")
 
 # Check bacterial cell size compared to large group estimates => does not work well
-Bact_traits_all[, new_size := recode(phylum, 
-'Elusimicrobia' = 0.2,
-'TM6' = 0.2,
-'Alphaproteobacteria' = 0.4,
-'Acidobacteria' = 0.5,
-'Deltaproteobacteria' = 0.5,
-'Bacteroidetes' = 0.5,
-'Gemmatimonadetes' = 0.5,
-'Verrucomicrobia' = 0.6,
-'Chlorobi' = 0.8,
-'Armatimonadetes' = 1,
-'Planctomycetes' = 1,
-'Chloroflexi' = 1.2,
-'Euryarchaeota' = 3,
-'Firmicutes' = 3,
-'Cyanobacteria' = 4,
-'Actinobacteria' = 4,
-'Gammaproteobacteria' = 5,
-'Betaproteobacteria' = 5,
-'Nitrospirae' = 5), by= phylum]
-
-ggplot(Bact_traits_all, aes( d1_up,  d2_up*d1_up)) + geom_point() + geom_smooth(method = 'lm')
-
+# Bact_traits_all[, new_size := dplyr::recode(phylum, 
+# 'Elusimicrobia' = 0.2,
+# 'TM6' = 0.2,
+# 'Alphaproteobacteria' = 0.4,
+# 'Deltaproteobacteria' = 0.5,
+# 'Acidobacteria' = 0.5,
+# 'Bacteroidetes' = 0.5,
+# 'Gemmatimonadetes' = 0.5,
+# 'Verrucomicrobia' = 0.6,
+# 'Chlorobi' = 0.8,
+# 'Armatimonadetes' = 1,
+# 'Planctomycetes' = 1,
+# 'Chloroflexi' = 1.2,
+# 'Euryarchaeota' = 3,
+# 'Firmicutes' = 3,
+# 'Cyanobacteria' = 4,
+# 'Actinobacteria' = 4,
+# 'Gammaproteobacteria' = 5,
+# 'Betaproteobacteria' = 5,
+# 'Nitrospirae' = 5), by= phylum]
+# 
+# Bact_traits_all[class %in% c('Alphaproteobacteria', 'Deltaproteobacteria', 'Gammaproteobacteria', 'Betaproteobacteria'), 
+#                 new_size := dplyr::recode(class, 
+#                                             'Alphaproteobacteria' = 0.4,
+#                                             'Deltaproteobacteria' = 0.5,
+#                                             'Gammaproteobacteria' = 5,
+#                                             'Betaproteobacteria' = 5), by= class]
 
 
 # How much of order & genus present in the trait dataset?
@@ -348,7 +352,7 @@ Abundance_genus[, Plot := Plot_ID]
 
 ### Transform data frames
 # Check distribution
-Trait_genus[, est_volume := d1_up.mean*3.14*d1_up.mean*d2_up.mean]
+Trait_genus[, est_volume := d2_up.mean*3.14*d2_up.mean*d1_up.mean]
 Trait_genus_order[, est_volume := d1_up.mean*3.14*d1_up.mean*d2_up.mean]
 Trait_genus[, est_elongation := d1_up.mean/d2_up.mean]
 Trait_genus_order[, est_elongation := d1_up.mean/d2_up.mean]
@@ -357,6 +361,12 @@ Trait_genus[, c('log_d1', 'log_d2', 'log_volume', 'log_doubling_H') := lapply(.S
 Trait_genus_order[, c('log_d1', 'log_d2', 'log_volume', 'log_doubling_H') := lapply(.SD, log), .SDcols = c('d1_up.mean', 'd2_up.mean', 'est_volume',  'doubling_h.mean')]
 
 traits_all = unique(c(traits_all, 'log_d1', 'log_d2', 'log_volume', 'log_doubling_H', 'est_elongation'))
+
+
+# Check species-level
+traits_test = Trait_genus_order[Std_Genus %in% unique(Abundance_genus$Std_Genus), list(log_volume, log_doubling_H, est_elongation, genome_size.mean)]
+pca_mic = dudi.pca(complete(mice(traits_test)), , scannf = FALSE, nf = 2)
+fviz_pca(pca_mic)
 
 # Solution 1: use only genus data
 CC_genus  <- check_coverage(Trait_genus, Abundance_genus, traits_all, "Std_Genus", "Std_Genus")
@@ -417,7 +427,7 @@ microb_soil_prop_2011 <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/
 microb_soil_prop_2014 <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Bacteria/Others/20251.txt")
 
 microb_soil_prop = rbindlist(list(microb_soil_prop_2011[, c('Year', 'EP_Plot_ID', 'fungi_bacteria', 'Ratio_Cmic_Nmic',"gram_positive",  "gram_negative" )], 
-                         microb_soil_prop_2014[, c('Year', 'EP_Plot_ID', 'fungi_bacteria', "Ratio_Cmic_Nmic", "gram_positive",  "gram_negative")]))
+                                  microb_soil_prop_2014[, c('Year', 'EP_Plot_ID', 'fungi_bacteria', "Ratio_Cmic_Nmic", "gram_positive",  "gram_negative")]))
 microb_soil_prop[, Plot := ifelse(nchar(EP_Plot_ID) == 5, EP_Plot_ID, paste(substr(EP_Plot_ID, 1, 3), '0', substr(EP_Plot_ID, 4, 4), sep = ''))]
 
 
@@ -443,59 +453,65 @@ CWM_bacterias_GO_complete = merge(CWM_bacterias_GO_complete, function_dataset[, 
 
 # Add fungal spore size
 
-CWM_bacterias_G_complete = merge(CWM_bacterias_G_complete, size_cwm, by = 'Plot')
-CWM_bacterias_GO_complete = merge(CWM_bacterias_GO_complete, size_cwm, by = 'Plot')
+
+
+#CWM_bacterias_G_complete = merge(CWM_bacterias_G_complete, CWM_fungi, by = 'Plot')
+#CWM_bacterias_GO_complete = merge(CWM_bacterias_GO_complete, CWM_fungi, by = 'Plot')
 
 
 # Add quantity of AMF
-AMF_2011 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27687_2_Dataset/27687_2_data.csv')
-AMF_2014 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27689_2_Dataset/27689_2_data.csv')
-AMF_2017 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27691_2_Dataset/27691_2_data.csv')
+#AMF_2011 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27687_2_Dataset/27687_2_data.csv')
+#AMF_2014 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27689_2_Dataset/27689_2_data.csv')
+#AMF_2017 = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Fungi/27691_2_Dataset/27691_2_data.csv')
+#
+#AMF_2011$Year = 2011
+#AMF_2014$Year = 2014
+#AMF_2017$Year = 2017
+#AMF = rbindlist(list(AMF_2011, AMF_2014#, AMF_2017
+#                     ))
+#
+#AMF_metrics = AMF[, list(Abundance = sum(Abundance), 
+#                         Ric = length(unique(AMF))), by = c('Plotid', 'Year')]
+#AMF_metrics[, Plot := ifelse(nchar(Plotid) == 5, Plotid, paste(substr(Plotid, 1, 3), '0', substr(Plotid, 4, 4), sep = ''))]
 
-AMF_2011$Year = 2011
-AMF_2014$Year = 2014
-AMF_2017$Year = 2017
-AMF = rbindlist(list(AMF_2011, AMF_2014#, AMF_2017
-                     ))
 
-AMF_metrics = AMF[, list(Abundance = sum(Abundance), 
-                         Ric = length(unique(AMF))), by = c('Plotid', 'Year')]
-AMF_metrics[, Plot := ifelse(nchar(Plotid) == 5, Plotid, paste(substr(Plotid, 1, 3), '0', substr(Plotid, 4, 4), sep = ''))]
-
-
-CWM_bacterias_G_complete = merge(CWM_bacterias_G_complete, AMF_metrics[, list(Plot = Plot, AMF = Abundance)], by = 'Plot')
-CWM_bacterias_GO_complete = merge(CWM_bacterias_GO_complete, AMF_metrics[, list(Plot = Plot, AMF = Abundance)], by = 'Plot')
+#CWM_bacterias_G_complete = merge(CWM_bacterias_G_complete, AMF_metrics[, list(Plot = Plot, AMF = Abundance)], by = 'Plot')
+#CWM_bacterias_GO_complete = merge(CWM_bacterias_GO_complete, AMF_metrics[, list(Plot = Plot, AMF = Abundance)], by = 'Plot')
 
 
 
 CWM_bacterias_selection = CWM_bacterias_GO_complete[grepl('G', Plot), list(Plot = Plot,
                                                            Year = Year,
-                                                           AOAB = AOAB,
-                                                           mic_AOA = AOA/1000000,
-                                                           mic_AOB = AOB/1000000,
-                                                           mic_anaeroby = log(anaerobic_score.mean),
-                                                           mic_nit_denit_ratio =  Npathways.value_Nitrifier/Npathways.value_Denitrifier,
-                                                           mic_motility = is.motility.value_yes/(is.motility.value_no +is.motility.value_yes),
+                                                           #AOAB = AOAB,
+                                                           #mic_AOA = AOA/1000000,
+                                                           #mic_AOB = AOB/1000000,
+                                                           #mic_anaeroby = log(anaerobic_score.mean),
+                                                           #mic_nit_denit_ratio =  Npathways.value_Nitrifier/Npathways.value_Denitrifier,
+                                                           mic_Bmotility = is.motility.value_yes/(is.motility.value_no +is.motility.value_yes),
                                                           #mic_d1 = d1_up.mean,
-                                                           mic_d2 = log_d2,
-                                                          # mic_volume = log_volume,
-                                                           mic_doubling_h =  log_doubling_H,
-                                                           mic_sporulation = sporulation.value_sporulation/(sporulation.value_sporulation + sporulation.value_not_sporulation),
-                                                           mic_genome_size = genome_size.mean/1000,
+                                                           #mic_Bsize = log_d2,
+                                                           #mic_Blen = log_d1,
+                                                           mic_Bvolume = log_volume,
+                                                           mic_Bdoubling_h =  log_doubling_H,
+                                                           mic_Bsporulation = sporulation.value_sporulation/(sporulation.value_sporulation + sporulation.value_not_sporulation),
+                                                           mic_Bgenome_size = genome_size.mean/1000,
                                                            mic_FB = fungi_bacteria,
                                                            mic_CN = Ratio_Cmic_Nmic,
-                                                           mic_spore_size = spore_size,
-                                                           mic_nsubstrates = n_substrates.mean,
-                                                           #mic_elongation = est_elongation,
-                                                           mic_pathotroph = soilfungi.pathotroph,
-                                                           mic_symbionts =  soilfungi.symbiont,
-                                                           mic_decomposer = soilfungi.decomposer,
-                                                           mic_RRN = rRNA16S_genes.mean,
-                                                           mic_BAratio = aoBAratio
-                                                          #mic_oligo = oli_copio.value_oligo/(oli_copio.value_oligo +oli_copio.value_copio),
-                                                          # mic_O.C.ratio = oli_copio.value_oligo/oli_copio.value_copio
+                                                        #   mic_Fspore_size = spore_size,
+                                                      #     mic_Fspore_shape = spore_shape,
+                                                         #  mic_Ffb_size = fruiting_body_size,
+                                                          
+                                                           mic_Bnsubstrates = n_substrates.mean,
+                                                           mic_Belong = est_elongation,
+                                                           mic_Fpathotroph = soilfungi.pathotroph,
+                                                           mic_Fsymbionts =  soilfungi.symbiont,
+                                                           mic_Fdecomposer = soilfungi.decomposer,
+                                                           mic_Brrn = rRNA16S_genes.mean,
+                                                           mic_BAratio = aoBAratio,
+                                                          # mic_oligo = oli_copio.value_oligo/(oli_copio.value_oligo +oli_copio.value_copio),
+                                                           mic_O.C.ratio = oli_copio.value_oligo/oli_copio.value_copio
                                                            )]
-CWM_bacterias_selection = mice::complete(mice(CWM_bacterias_selection))
+CWM_bacterias_selection = data.table(mice::complete(mice(CWM_bacterias_selection)))
 write_csv(complete(mice(CWM_bacterias_selection)), '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Microbes.csv')
 
 CWM_bacterias_agg = CWM_bacterias_selection[, lapply(.SD, mean, na.rm = T), .SDcols = colnames(CWM_bacterias_selection)[!colnames(CWM_bacterias_selection) %in% c('Plot', 'Year')], by = 'Plot']

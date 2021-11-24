@@ -177,17 +177,17 @@ check_coverage <- function(Traits0, Abundances0, trait_names, trait_taxo, abunda
   traits_ab_cover <- traits_ab_cover[value > 0, ]
   traits_ab_cover$ID <- 1:nrow(traits_ab_cover)
   traits_ab_cover[, value2 := ifelse(is.na(taxo) | taxo == ' genus', 0, value)]
-  MAX = traits_ab_cover[, list(MAX =  sum(value2, na.rm = T)/sum(value, na.rm = T)), by = c('Plot',"Year")]
+  #MAX = traits_ab_cover[, list(MAX =  sum(value2, na.rm = T)/sum(value, na.rm = T)), by = c('Plot',"Year")]
   
   # For quantitative traits
   traits_ab_cover2 <- cbind(
     traits_ab_cover[, lapply(.SD, function(x) {
       x = unlist(x)
-     # print(x)
-      x[is.null(x)] <- 0
-      x[(is.na(x) |  (x == "NA"))] <- 0
-      x[x != 0] <- 1
-      x <- as.numeric(x)
+       x = ifelse(is.null(x) | (is.na(x) |  (x == "NA")), 0, 1)
+   #   x[is.null(x)] <- 0
+  #    x[(is.na(x) |  (x == "NA"))] <- 0
+  #    x[x != 0] <- 1
+   #   x <- as.numeric(x)
       return(x)
     }),
     by = ID,
@@ -265,3 +265,5 @@ if (!is.na(save)){
 }
 return(gg)
 }
+
+
