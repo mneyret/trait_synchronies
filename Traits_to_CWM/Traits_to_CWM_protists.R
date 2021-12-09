@@ -65,9 +65,19 @@ trait_names = c("morpho_code",
                 "nutrition_code","Size",  'Naked_amoeba')
 
 #### Aggregate abundance to Genus_2
-Cercozoa_abundance_format = Cercozoa_abundance_format[, list(value = sum(as.numeric(value))), by = c("Order", "Family","Genus", 
-                                                                                                "Plot", "Year") ]
+#Cercozoa_abundance_format = Cercozoa_abundance_format[, list(value = sum(as.numeric(value))), by = c("Order", "Family","Genus", 
+#                                                                                                "Plot", "Year") ]
 
+Cercozoa_abundance_format[, nutrition_code:=  dplyr::recode(nutrition, 
+                                                            !!!c('NA' = NA,
+                                                                 bacterivore = 'bacterial_cons',
+                                                                 animal_parasite = 'secondary_cons',
+                                                                 plant_parasite = 'primary_cons',
+                                                                 nutrition_unknown = NA,
+                                                                 eukaryvore = 'secondary_cons',
+                                                                 omnivore = 'secondary_cons',
+                                                                 not_plant_parasite = 'secondary_cons',
+                                                                 autotroph = 'primary_prod'))]
 
 
 # Species-level strategies
@@ -94,6 +104,10 @@ CC_Protists_prim_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code ==
                                 , 'Genus', 'Genus')
 CC_Protists_bacterial_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'bacterial_cons',.SD, .SDcols = !c('Family')]), 
                                         Cercozoa_abundance_format[nutrition_code == 'bacterial_cons',], trait_names[trait_names != 'nutrition_code'], 'Genus', 'Genus')
+
+
+Cercozoa_traits[nutrition_code == 'secondary_cons', length(Size[!is.na(Size)])]
+Cercozoa_abundance_format[nutrition_code == 'secondary_cons',]
 CC_Protists_sec_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = !c('Family')]), 
                                 Cercozoa_abundance_format[nutrition_code == 'secondary_cons',], trait_names[trait_names != 'nutrition_code'], 'Genus', 'Genus')
 

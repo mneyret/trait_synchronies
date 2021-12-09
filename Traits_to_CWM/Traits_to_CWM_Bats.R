@@ -82,16 +82,21 @@ myotis_species = gsub(' ', '_', german_bats[grepl('Myotis',german_bats)])
 plecotus_species = gsub(' ', '_',german_bats[grepl('Plecotus',german_bats)])
 
 bat_traits = c('Mass.log','GenLen_m14', 'body.mass','Female_mass', 'forearm.length', 'aspect.ratio', 'wing.loading', 'peak.f', 'duration', 'Lifespan', 'Offspring')
-Bat_traits = all_traits #data.table(mice::complete(mice(all_traits[, .SD, .SDcols = c('Species', bat_traits)])))
+Bat_traits = all_traits 
 Bat_traits[, RWL := wing.loading/(body.mass^1/3)] # check ref in https://www.nature.com/articles/s41598-019-41125-0
 bat_traits2 = c('Mass.log', 'Lifespan', 'Offspring')
 
 Nyctaloid_traits = Bat_traits[Species %in% nyctaloid_species, lapply(.SD, mean), .SDcols = bat_traits2][, Species := 'Nyctaloid']
-Myotis_traits = Bat_traits[Species %in% myotis_species, lapply(.SD, mean), .SDcols = bat_traits2][, Species := 'Myotis_sp']
-Plecotus_traits = Bat_traits[Species %in% plecotus_species, lapply(.SD, mean), .SDcols = bat_traits2][, Species := 'Plecotus_sp']
+Myotis_traits = Bat_traits[Species %in% myotis_species, lapply(.SD, mean, na.rm = T), .SDcols = bat_traits2][, Species := 'Myotis_sp']
+Plecotus_traits = Bat_traits[Species %in% plecotus_species, lapply(.SD, mean, na.rm = T), .SDcols = bat_traits2][, Species := 'Plecotus_sp']
 
 Bat_traits_full = rbindlist(list(Bat_traits[, .SD, .SDcols = c(bat_traits2, 'Species')], Nyctaloid_traits, Myotis_traits, Plecotus_traits), use.names=TRUE)
-lala = check_coverage(Bat_traits_full, Abundances_all[ Group_broad == 'Bats',], bat_traits2, 'Species', 'Species')
+Bats_CC = check_coverage(Bat_traits_full, Abundances_all[ Group_broad == 'Bats',], bat_traits2, 'Species', 'Species')
+
+Bat_traits_full[Species %in% explo_species,]
+Bats_CC[, -c(1,2)][,lapply(.SD, min)]
+Bats_CC[, -c(1,2)][,lapply(.SD, median)]
+Bats_CC[, -c(1,2)][,lapply(.SD, max)]
 
 # Species-level
 pca_bats = dudi.pca(Bat_traits_full[Species %in% german_bats, ..bat_traits2],  scannf = FALSE, nf = 2)

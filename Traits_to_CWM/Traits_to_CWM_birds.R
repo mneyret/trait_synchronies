@@ -192,56 +192,37 @@ bird_traits[, c('log_wing_len',
 bird_traits[, wing_body_ratio := wing_length_max/body_length_max]
 bird_traits[, log_offspring := log(as.numeric(clutch_size_max)*as.numeric(maximum_broods_per_year))]
 
-trait_pols = c( # 'log_clutch',
-                # "log_brood" ,
-                  'GenLength',
+trait_pols = c( 'GenLength',
                   "log_incub",
                   'log_offspring',
                   "log_longevity"
                   )
-trait_morpho =c(#'log_wing_len',
-                'log_body_len',
-                #'log_tail_len',
-                #'log_bill_len',
-                #'log_tarsus_len',
-                #'log_body_m'
-                #'log_wing_s',
-              #  'wing_body_ratio'
+trait_morpho =c(
+                'log_body_len'
 )
 trait_selection = c(trait_pols, trait_morpho)
 traits_main = c(trait_pols[trait_pols != 'tot_offspring'], 'log_body_m', 'wing_body_ratio')
 
-### Species-level PCA
-# All
-pca_birds = dudi.pca(bird_traits[complete.cases(bird_traits[, ..trait_selection]), .SD, .SDcols = trait_selection], scannf = FALSE, nf = 3)
-fviz_pca(pca_birds)
-# Herbivores
-pca_birds_herb = dudi.pca(bird_traits[trophic_level == 'herbivore',][complete.cases(bird_traits[trophic_level == 'herbivore', ..trait_selection]), ..trait_selection], scannf = FALSE, nf = 3)
-pca_birds_herb_species= fviz_pca_biplot(pca_birds_herb, geom = c("point"), repel = T, axes = c(1,2), title = 'Herbivore birds')
-ggsave(pca_birds_herb_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Birds_herb.pdf', width = 5, height = 5)    
+### Compare species with traits and all species
+Abundances[(Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'),species_latin]), unique(Species)]
+Abundances[(Species %in% bird_traits[!(trophic_level %in% c('insectivore','carnivore')),species_latin]) & value >0, unique(Plot)]
 
-# Insectivores
-pca_birds_insect = dudi.pca(bird_traits[trophic_level == 'insectivore',][complete.cases(bird_traits[trophic_level == 'insectivore', ..trait_selection]), ..trait_selection], scannf = FALSE, nf = 3)
+
+### Species-level PCA
+
+# Insectivores and Carnivore
+pca_birds_insect = dudi.pca(bird_traits[trophic_level %in% c('insectivore','carnivore'),][complete.cases(bird_traits[trophic_level %in% c('insectivore','carnivore'), ..trait_selection]), ..trait_selection], scannf = FALSE, nf = 3)
 pca_birds_insect_species= fviz_pca_biplot(pca_birds_insect, geom = c("point"), repel = T, axes = c(1,2), title = 'Insectivore birds')
 ggsave(pca_birds_insect_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Birds_insect.pdf', width = 5, height = 5)    
-# Carnivore
-pca_birds_carni = dudi.pca(bird_traits[trophic_level == 'carnivore',][complete.cases(bird_traits[trophic_level == 'carnivore', ..trait_selection]), ..trait_selection], scannf = FALSE, nf = 3)
-pca_birds_carni_species= fviz_pca_biplot(pca_birds_carni, geom = c("point"), repel = T, axes = c(1,2), title = 'Carnivorous birds')
-ggsave(pca_birds_carni_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Birds_carni.pdf', width = 5, height = 5)    
 
-### Community-level
-CWM_birds_all = my_cwm(bird_traits[Ground_foraging_nest == TRUE,], Abundances, c(trait_selection, 'trophic_level'),'species_latin', 'Species')[, lapply(.SD, mean, na.rm = T),.SDcols = trait_selection, by = Plot]
+# Coverage
+CC_birds_insect = check_coverage(bird_traits[trophic_level %in% c('insectivore','carnivore'),], 
+                                 Abundances[Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'),species_latin],], 
+                                 c(trait_selection),'species_latin', 'Species')
 
-# Herbivores
-CWM_birds_herb = my_cwm(bird_traits[trophic_level == 'herbivore' , ], Abundances, trait_selection,'species_latin', 'Species')[, lapply(.SD, mean, na.rm = T),.SDcols = trait_selection, by = Plot]
+# Community weighted mean
+CWM_birds_insect = my_cwm(bird_traits[trophic_level %in% c('insectivore','carnivore'),], Abundances, c(trait_selection),'species_latin', 'Species')
 
-# Insectivores
-CWM_birds_insect = my_cwm(bird_traits[trophic_level %in% c('insectivore','carnivore'),], Abundances, c(trait_selection),'species_latin', 'Species')#[, lapply(.SD, mean, na.rm = T),.SDcols = c(trait_selection), by = Plot]
-
-# Omnivores and predators
-CWM_birds_pred = my_cwm(bird_traits[trophic_level == 'carnivore'  ,], Abundances, trait_selection,'species_latin', 'Species')[, lapply(.SD, mean, na.rm = T),.SDcols = trait_selection, by = Plot]
-
-traits_main2 = c(traits_main, 'trophic_level_carnivore', 'trophic_level_herbivore', 'trophic_level_insectivore')
 # Look at PCAs
 pca_ins  = dudi.pca(CWM_birds_insect[complete.cases(CWM_birds_insect[,.SD, .SDcols = c(trait_selection)]), .SD, .SDcols = c(trait_selection)], scannf = FALSE, nf = 3)
 
@@ -260,26 +241,9 @@ tot_pca12
 
 ### Save data
 
-fwrite(CWM_birds_pred[, list("Plot" = Plot,
-                             "Year" = Year,
-                             "Bp_Size" = log_body_len     ,
-                             "Bp_Incub" = log_incub,
-                             "Bp_TOffsprings" = log_offspring  ,
-                             "Bp_AgeMax" = logAge
-                                )
-                          ], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Birds_pred.csv")
-fwrite(CWM_birds_herb[, list( "Plot" = Plot               ,
-                               "Year" = Year,
-                              "Plot" = Plot,
-                                   "Year" = Year,
-                                   "Bh_Size" = log_body_len     ,
-                                   "Bh_Incub" = log_incub,
-                                   "Bh_TOffsprings" = log_offspring  ,
-                                   "Bh_AgeMax" = logAge)
-], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Birds_herb.csv")
 fwrite(CWM_birds_insect[, list( "Plot" = Plot               ,
                                 "Year" = Year,
-                                "Bi_Mass" = log_body_m     ,
+                                "Bi_Size" = log_body_len     ,
                                 "Bi_Incub" = log_incub,
                                 "Bi_TOffsprings" = log_offspring  ,
                                 "Bi_AgeMax" = log_longevity,

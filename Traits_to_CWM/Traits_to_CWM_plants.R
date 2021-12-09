@@ -15,14 +15,12 @@ setwd("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analys
 Abundances = Abundances[Group_broad == "Plant",]      
 
 # This is the matching table between Exploratories and TRY data
-Species_table <- #data.table(read.csv("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Raw_data/Plants/Try_request/Final_data/Species_table_no_synonyms.csv"))
+Species_table <- 
   data.table(read.csv("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Raw_data/Plants/Try_request/Final_data/Species_table22.csv"))
 Species_table = Species_table[, c('Species_raw', "Species_list_format", "Species_list_corrected", "Synonyms", "All_names", 'Forest_or_grassland_estimate' )]
 
 # This is the AG trait data
 AG_traits <- fread("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Raw_data/Plants/Try_request/Final_data/TRY_plant_traits.csv", header = TRUE)
- #fread("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Raw_data/Plants/Try_request/Final_data/TRY_plant_traits_with_shade.csv")
-#fread("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/Raw_data/Plants/Try_request/Final_data/TRY_plant_traits_onlyCEurope.csv")
 
 AG_traits = AG_traits[TraitName != '', c('TraitName', 'new.AccSpeciesName', 'UnitName', 'StdValue', 'Std_std', "Reps", "Min", "Max", "Range", "N_contrib", "References")]
 
