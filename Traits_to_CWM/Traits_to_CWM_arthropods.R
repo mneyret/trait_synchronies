@@ -11,11 +11,27 @@ library(readxl)
 library(dplyr)
 library(traitdataform)
 library(mice)
+library(factoextra)
 
 setwd("/Users/Margot/Desktop/Research/Senckenberg/Data/")
 
+###### Abundances ####
+## Raw diversity
+allsp <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_diversity_GRL_BEXIS.txt")
+allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
+## Species information
+fgs <- fread("//Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_info_GRL_BEXIS.txt")
+fgs$Species = gsub(' $', '', fgs$Species )
+fgs$Species = gsub(' ', '_', fgs$Species )
+Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
+Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
+
+#####################################
+#### Hemiptera, Coleoptera, etc. ####
+#####################################
+
 ###### Functions ######
-# Standardise Name in datatable
+# Standardise name in datatable
 get_gbif = function(x){
   if(is.na(x)){
     return(NA)
@@ -36,29 +52,23 @@ get_gbif = function(x){
 }}}
 }
 
-
 ###### Input data ####### 
 ### Traits
-#published in Goessner 2015
+#published in Goessner 2015 - it has additional variables compared to the current version
 Arthropod_traits_Goessner = setDT(read_delim("Traits/Arthropods/ArthropodSpeciesTraits.csv", ";", escape_double = FALSE, trim_ws = TRUE))
 Arthropod_traits_Goessner[, gbifName := get_gbif(SpeciesID), by = SpeciesID]
 
-### New version
+### New version - most complete trait dataset
 Arthropod_traits_grasslands_Raw = fread('Traits/Arthropods/31122_6_Dataset/31122_6_data.csv')
 Arthropod_traits_grasslands_Raw = unique(Arthropod_traits_grasslands_Raw)
 Arthropod_traits_grasslands_Raw[, gbifName := get_gbif(SpeciesID), by = SpeciesID]
 Arthropod_traits_grasslands_Raw[, Dispersal_ability := as.numeric(gsub(',', '.', Dispersal_ability))]
 
-### Additional traits
-# Generation time for herbivore
+# Generation time for herbivore (compiled from different datasets)
 Voltinism_traits <- data.table(read_excel("Traits/Arthropods/Voltinism_herbivore.xlsx"))
 Voltinism_traits[, gbifName := get_gbif(Species_raw), by = Species_raw]
 Voltinism_traits[, Generations := as.numeric(Generations)]
 Voltinism_traits = Voltinism_traits[!is.na(gbifName),]
-# Traits from Birkhofer et al. 2017 (Araneae)
-#Birkhofer_araneae = data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Arthropods/Birkhofer_2017/Traits_Communities.xlsx", sheet = 'Araneae'))
-#Birkhofer_araneae[, new_scientificName := get_gbif(gsub('\\.', ' ', Site)), by = Site]
-#Birkhofer_araneae$new_scientificName %in% Arthropod_traits_grasslands$new_scientificName
 
 ### Abundances
 Abundances_all = fread("Abundances/Dataset_clean.txt")
@@ -72,16 +82,18 @@ Abundances_temporal_by_plot[, gbifName := get_gbif(Species), by = Species]
 
 
 ###### Data cleaning and standardisation ####### 
-# One species wasn't found by the function get_gbif
+# One species can't be found by the function get_gbif for some reason
 Abundances_temporal_by_plot[Species == 'Pachybrachius fracticollis' , new_scientificName := 'Pachymerus fracticollis']
 Arthropod_traits_grasslands[SpeciesID == 'Pachybrachius fracticollis' , new_scientificName := 'Pachymerus fracticollis']
 
-
-# Merge with other trait dataset
+# Merge trait datasets
 Arthropod_traits_grasslands = merge(Arthropod_traits_grasslands_Raw, Arthropod_traits_Goessner[, list(Feeding_guild_Goessner = Feeding_guild, Feeding_specialization, gbifName)], all.x = T)
 Arthropod_traits_grasslands = merge(Arthropod_traits_grasslands, Voltinism_traits[, list(Generations, gbifName)], all.x = T)
 Arthropod_traits_grasslands = unique(Arthropod_traits_grasslands)
 
+# Merging primarily on the names originally provided in the datasets (which fit in most cases).
+# If no fit is found, I use the names provided by the gbif function.
+# This is done because in some cases the gbif function merges synonyms which are considered separately in the trait databases
 Arthropod_traits_grasslands[, new_scientificName := ifelse(SpeciesID %in% Abundances_temporal_by_plot$Species, SpeciesID, gbifName), by = SpeciesID]
 Abundances_temporal_by_plot[, new_scientificName := ifelse(Species %in% Arthropod_traits_grasslands_Raw$SpeciesID, Species, gbifName), by = Species]
 
@@ -98,24 +110,25 @@ Arthropod_traits_grasslands[, Feeding_guild_simple := dplyr::recode(Feeding_guil
                                                               'd'        = 'primary',
                                                               "c"       = 'secondary',
                                                               )]
+
 # To classify omnivores, let's look more precisely at the Goessner dataset.
-# Species which are carnivores at at least one of their lifestages are classified as secondary consumers, the other as primary consumers
+# Here we classify species which are carnivores at at least one of their lifestages as secondary consumers, the other as primary consumers. 
 Arthropod_traits_grasslands[Feeding_guild == 'o' & grepl('c', Feeding_guild_Goessner) & Feeding_guild_Goessner != 'h-(c)', Feeding_guild_simple := 'secondary']
 Arthropod_traits_grasslands[Feeding_guild == 'o' & Feeding_guild_simple == 'o', Feeding_guild_simple := 'primary']
 
-# Simplyfy stratum_use into below-ground (soil, ground) and above-ground
+# Simplify stratum_use into below-ground (soil, ground) and above-ground
 Arthropod_traits_grasslands[, Stratum_use_simple := dplyr::recode(Stratum_use, 
                                                                     "g" = "below",
                                                                     "h" = "above",
                                                                     "i" = "above",
                                                                     "s" = "below",
                                                                     "t" = "above",
-                                                                    "u" = "above",
+                                                                    "u" = "NA",
                                                                     "w" = "NA")
 ]
 
 
-# Also using the old dataset
+# We transform feeding specialisation into a numerical variable
 Arthropod_traits_grasslands[, Feeding_generalism := as.numeric(factor(Feeding_specialization, levels = c('m', 'o', 'p')))]
 
 
@@ -129,7 +142,7 @@ un_id_species[, SpeciesID := Species]
 # Order, Family
 un_id_species[, c( 'Order', 'Family') := list(unique( unique(Arthropod_traits_grasslands[Genus == genus, Order]),
                                                           unique(Arthropod_traits_grasslands[Genus == genus, Family]))), by = genus]
-# Numeric traits
+# Numeric traits: we attribute genus-level values to unidentified species if all data is consistent, i.e. mean > 2*sd
 un_id_species[, c('Mean_BodySize', 'Dispersal_ability', 'Generations') := list(as.numeric(ifelse( Arthropod_traits_grasslands[Genus == genus, mean(Mean_BodySize, na.rm = T)] > 2*Arthropod_traits_grasslands[Genus == genus, sd(Mean_BodySize, na.rm = T)],
                                                                                   Arthropod_traits_grasslands[Genus == genus, mean(Mean_BodySize, na.rm = T)],
                                                                                   NA)),
@@ -139,7 +152,7 @@ un_id_species[, c('Mean_BodySize', 'Dispersal_ability', 'Generations') := list(a
                                                                            as.numeric(ifelse(Arthropod_traits_grasslands[Genus == genus, mean(Generations, na.rm = T)] > 2* Arthropod_traits_grasslands[Genus == genus, sd(Generations, na.rm = T)],
                                                                                   Arthropod_traits_grasslands[Genus == genus, mean(Generations, na.rm = T)],
                                                                                   NA))), by = genus]
-# Qualitative traits traits
+# Qualitative traits traits: we attribute genus-level values to unidentified species if all data is consistent, i.e. 90% species share the same trait value
 un_id_species[, Stratum_use_simple := as.character(ifelse(
   Arthropod_traits_grasslands[Genus == genus, max(table(Stratum_use_simple[!is.na(Stratum_use_simple)]), na.rm = T)>0.9*sum(table(Stratum_use_simple[!is.na(Stratum_use_simple)]), na.rm = T)],
   Arthropod_traits_grasslands[Genus == genus, names(sort(table(Stratum_use_simple[!is.na(Stratum_use_simple)]), decreasing = T))[1]],
@@ -162,11 +175,12 @@ Arthropod_traits = unique(Arthropod_traits)
 Arthropod_traits = Arthropod_traits[!is.na(new_scientificName),]
 
 Arthropod_traits$Feeding_generalism = as.numeric(Arthropod_traits$Feeding_generalism)
+
 ###### Check trait distribution
 Arthropod_traits[, logBody_Size := log(Mean_BodySize)]
 
 
-### Calculate CWM
+### Draw species-level PCAs and calculate CWM
 # Some species from abundance are not included in trait so need to adapt the number reported:
 # AG, herb: + 1 Auchenorrhyncha spec., Typhlocybinae spec., Stenodemini, Deltocephalinae spec."
 
@@ -177,9 +191,13 @@ traits_h_AG = Arthropod_traits[Stratum_use_simple == 'above'  &
                                .SDcols = c('Feeding_generalism', 'Dispersal_ability', 'logBody_Size', 'Generations')]
 traits_h_AG[, lapply(.SD, function(x){length(x[!is.na(x)])})]
 
-cor.test(traits_h_AG$logBody_Size, traits_h_AG$Feeding_generalism)
-pca_species = dudi.pca(traits_h_AG[!is.na(Generations) & !is.na(Feeding_generalism) & !is.na(Dispersal_ability),], scannf = FALSE, nf = 2)
-fviz_pca(pca_species)
+pca_h_AG_sp = dudi.pca(mice::complete(mice(traits_h_AG[, list(Feeding_generalism, Dispersal_ability,Body_Size.log = logBody_Size, Generations)])), scannf = FALSE, nf = 2)
+gg_h_AG = fviz_pca(pca_h_AG_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                  col.ind = "steelblue",
+                  fill.ind = "white",
+                  col.var = "black")
+ggsave(gg_h_AG, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_arth_h_AG.pdf', width = 6, height = 5)
+
 
 Ab_h_AG = Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'primary' , SpeciesID] 
                                       | new_scientificName %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'primary', new_scientificName]
@@ -197,15 +215,19 @@ test_pca = dudi.pca(complete(mice(CWM_Arthropods_above_herb[, lapply(.SD, mean),
 fviz_pca(test_pca)
 
 
-# Carnivores, AG ---> Need to take axis 2
+# Carnivores, AG ---> Here the fasto-slow axis is axis 2
 trait_c_AG = Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'secondary' &
                                 new_scientificName %in% Abundances_temporal_by_plot$new_scientificName,lapply(.SD, as.numeric), .SDcols = c('Dispersal_ability', 'logBody_Size')]
 
 trait_c_AG[, lapply(.SD, function(x){length(x[!is.na(x)])})]
 
-pca_c_AG = dudi.pca(trait_c_AG[complete.cases(trait_c_AG),], scannf = FALSE, nf = 2)
-fviz_pca(pca_c_AG)
-cor.test(trait_c_AG$Dispersal_ability, trait_c_AG$Active_hunt)
+
+pca_c_AG_sp = dudi.pca(mice::complete(mice(trait_c_AG[, list( Dispersal_ability, Body_Size.log = logBody_Size)])), scannf = FALSE, nf = 2)
+gg_c_AG = fviz_pca(pca_c_AG_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                   col.ind = "steelblue",
+                   fill.ind = "white",
+                   col.var = "black")
+ggsave(gg_c_AG, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_arth_c_AG.pdf', width = 6, height = 5)
 
 
 Coverage_Arthropods_above_carni = check_coverage(Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'secondary' ,], 
@@ -216,10 +238,7 @@ Coverage_Arthropods_above_carni = check_coverage(Arthropod_traits[Stratum_use_si
 
 CWM_Arthropods_above_omni_carni = my_cwm(Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple  == 'secondary',], 
                                          Abundances_temporal_by_plot, c('Dispersal_ability',"logBody_Size"), 'new_scientificName', 'new_scientificName')
-
-
-pca_c_AG = dudi.pca(complete(mice(CWM_Arthropods_above_omni_carni[, lapply(.SD, mean, na.rm = T), by = Plot, .SDcols = c('Dispersal_ability', 'logBody_Size')][, -1])), , scannf = FALSE, nf = 2)
-fviz_pca(pca_c_AG)
+pca_c_AG = dudi.pca(complete(mice(CWM_Arthropods_above_omni_carni[, lapply(.SD, mean, na.rm = T), by = Plot, .SDcols = c('Dispersal_ability', 'logBody_Size')][, -1])), scannf = FALSE, nf = 2)
 
 # Herbivores, BG
 trait_h_BG = Arthropod_traits[Stratum_use_simple == 'below' & Feeding_guild_simple  == 'primary'  &
@@ -228,9 +247,13 @@ trait_h_BG = Arthropod_traits[Stratum_use_simple == 'below' & Feeding_guild_simp
 trait_h_BG[, lapply(.SD, function(x){length(x[!is.na(x)])})]
 
 
-pca_h_BG = dudi.pca(trait_h_BG[complete.cases(trait_h_BG),], scannf = FALSE, nf = 2)
-fviz_pca(pca_h_BG)
-cor.test(trait_h_BG$logBody_Size, trait_h_BG$Dispersal_ability)
+pca_h_BG_sp = dudi.pca(mice::complete(mice(trait_h_BG[, list(Feeding_generalism, Dispersal_ability, Body_Size.log = logBody_Size)])), scannf = FALSE, nf = 2)
+gg_h_BG_sp = fviz_pca(pca_h_BG_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                   col.ind = "steelblue",
+                   fill.ind = "white",
+                   col.var = "black")
+ggsave(gg_h_BG_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_arth_h_BG.pdf', width = 6, height = 5)
+
 
 Coverage_Arthropods_below_herb = check_coverage(Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'primary' ,], 
                                                 Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'primary' , SpeciesID] |
@@ -247,9 +270,12 @@ trait_c_BG = Arthropod_traits[Stratum_use_simple == 'below' & Feeding_guild_simp
 
 trait_c_BG[, lapply(.SD, function(x){length(x[!is.na(x)])})]
 
-pca_c_BG = dudi.pca(trait_c_BG[complete.cases(trait_c_BG),], scannf = FALSE, nf = 2)
-fviz_pca(pca_c_BG)
-cor.test(trait_c_BG$logBody_Size, trait_c_BG$Dispersal_ability)
+pca_c_BG_sp = dudi.pca(mice::complete(mice(trait_c_BG[, list(Dispersal_ability, Body_Size.log = logBody_Size)])), scannf = FALSE, nf = 2)
+gg_c_BG_sp = fviz_pca(pca_c_BG_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                      col.ind = "steelblue",
+                      fill.ind = "white",
+                      col.var = "black")
+ggsave(gg_c_BG_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_arth_c_BG.pdf', width = 6, height = 5)
 
 Coverage_Arthropods_below_carni = check_coverage(Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'secondary' ,], 
                                                 Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'secondary' , SpeciesID] |
@@ -260,7 +286,6 @@ CWM_Arthropods_below_omni_carni  = my_cwm(Arthropod_traits[Stratum_use_simple ==
                                    Abundances_temporal_by_plot, c( 'Dispersal_ability',"logBody_Size"), 'SpeciesID', 'Species')
 
 test_pca = dudi.pca(mice::complete(mice(CWM_Arthropods_below_omni_carni[, lapply(.SD, mean), by = Plot, .SDcols = c('Dispersal_ability', 'logBody_Size')][, -1])), scannf = FALSE, nf = 2)
-fviz_pca(test_pca)
 
 # Save datasets
 write.csv(CWM_Arthropods_above_herb[,list( "Ah_Dispersal" = Dispersal_ability, 
@@ -269,7 +294,6 @@ write.csv(CWM_Arthropods_above_herb[,list( "Ah_Dispersal" = Dispersal_ability,
                                          "Ah_Generations" = Generations,
                                          "Plot" = Plot,
                                          "Year" = Year )], 
-
           "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_above_herb.csv")
  
 write.csv(CWM_Arthropods_below_herb[,list( "Ah_b_Dispersal" = Dispersal_ability, 
@@ -277,18 +301,13 @@ write.csv(CWM_Arthropods_below_herb[,list( "Ah_b_Dispersal" = Dispersal_ability,
                                            "Ah_b_Generalism" = Feeding_generalism,
                                            "Plot" = Plot,
                                            "Year" = Year )], 
-          
           "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_below_herb.csv")
-
 
 write.csv(CWM_Arthropods_above_omni_carni[,list( "Aoc_Dispersal" = Dispersal_ability, 
                                            "Aoc_BodySize" = logBody_Size,
                                            "Plot" = Plot,
                                            "Year" = Year )], 
-          
           "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_above_omni_carni.csv")
-
-
 
 write.csv(CWM_Arthropods_below_omni_carni[,list(
                                             "Aoc_b_Dispersal" = Dispersal_ability, 
@@ -296,8 +315,109 @@ write.csv(CWM_Arthropods_below_omni_carni[,list(
                                             "Plot" = Plot,
                                             "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Arthropods_below_omni_carni.csv")
 
-######  !!! MORRRRRE TRRAAAAAITS #####
-### Collembola
+
+# Non-weighted community traits
+
+Abundances_temporal_by_plot_presence_absence = Abundances_temporal_by_plot[, list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Species , Order, gbifName, new_scientificName)]
+Abundances_temporal_by_plot_presence_absence[value>1, value := 1]
+# Herbivore, AG
+CWM_Arthropods_above_herb_noweight = my_cwm(Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'primary' ,], 
+                                   Abundances_temporal_by_plot_presence_absence, c( 'Dispersal_ability',"logBody_Size", 'Feeding_generalism', 'Generations'), 'new_scientificName', 'new_scientificName')
+# Carnivores, AG ---> Need to take axis 2
+CWM_Arthropods_above_omni_carni_noweight = my_cwm(Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple  == 'secondary',], 
+                                         Abundances_temporal_by_plot_presence_absence, c('Dispersal_ability',"logBody_Size"), 'new_scientificName', 'new_scientificName')
+
+# Herbivores, BG
+CWM_Arthropods_below_herb_noweight = my_cwm(Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'primary' ,], 
+                                   Abundances_temporal_by_plot_presence_absence, c( 'Dispersal_ability',"logBody_Size", 'Feeding_generalism', 'Generations'), 'new_scientificName', 'new_scientificName')
+
+# Carnivores, BG
+CWM_Arthropods_below_omni_carni_noweight  = my_cwm(Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'secondary' ,], 
+                                          Abundances_temporal_by_plot_presence_absence, c( 'Dispersal_ability',"logBody_Size"), 'SpeciesID', 'Species')
+
+# Save datasets
+write.csv(CWM_Arthropods_above_herb_noweight[,list( "Ah_Dispersal" = Dispersal_ability, 
+                                           "Ah_BodySize" = logBody_Size,
+                                           "Ah_Generalism" = Feeding_generalism,
+                                           "Ah_Generations" = Generations,
+                                           "Plot" = Plot,
+                                           "Year" = Year )], 
+          "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_above_herb_noweight.csv")
+
+write.csv(CWM_Arthropods_below_herb_noweight[,list( "Ah_b_Dispersal" = Dispersal_ability, 
+                                           "Ah_b_BodySize" = logBody_Size,
+                                           "Ah_b_Generalism" = Feeding_generalism,
+                                           "Plot" = Plot,
+                                           "Year" = Year )], 
+          "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_below_herb_noweight.csv")
+
+
+write.csv(CWM_Arthropods_above_omni_carni_noweight[,list( "Aoc_Dispersal" = Dispersal_ability, 
+                                                 "Aoc_BodySize" = logBody_Size,
+                                                 "Plot" = Plot,
+                                                 "Year" = Year )], 
+          "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data//CWM_Arthropods_above_omni_carni_noweight.csv")
+
+
+
+write.csv(CWM_Arthropods_below_omni_carni_noweight[,list(
+  "Aoc_b_Dispersal" = Dispersal_ability, 
+  "Aoc_b_BodySize" = logBody_Size,
+  "Plot" = Plot,
+  "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Arthropods_below_omni_carni_noweight.csv")
+
+### Check turnover
+data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
+max_lui_plots = data_lui[rank(LUI) > 140,Plot]
+
+library(betapart)
+comm.testaH_AG = dcast(Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'primary' , SpeciesID] |
+                              new_scientificName %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'primary' , new_scientificName], 
+                            list(value = sum(value, na.rm = T)), by = c('new_scientificName', 'Plot')], Plot ~ new_scientificName, fill = 0)
+comm.testaH_BG = dcast(Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'primary' , SpeciesID] |
+                                                     new_scientificName %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'primary' , new_scientificName], 
+                                                   list(value = sum(value, na.rm = T)), by = c('new_scientificName', 'Plot')], Plot ~ new_scientificName, fill = 0)
+comm.testaC_AG = dcast(Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'secondary' , SpeciesID] |
+                                                     new_scientificName %in% Arthropod_traits[Stratum_use_simple == 'above'  &  Feeding_guild_simple == 'secondary' , new_scientificName], 
+                                                   list(value = sum(value, na.rm = T)), by = c('new_scientificName', 'Plot')], Plot ~ new_scientificName, fill = 0)
+comm.testaC_BG = dcast(Abundances_temporal_by_plot[Species %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'secondary' , SpeciesID] |
+                                                     new_scientificName %in% Arthropod_traits[Stratum_use_simple == 'below'  &  Feeding_guild_simple == 'secondary' , new_scientificName], 
+                                                   list(value = sum(value, na.rm = T)), by = c('new_scientificName', 'Plot')], Plot ~ new_scientificName, fill = 0)
+
+rownames(comm.testaH_AG)= comm.testaH_AG$Plot
+rownames(comm.testaH_BG)= comm.testaH_BG$Plot
+rownames(comm.testaC_AG)= comm.testaC_AG$Plot
+rownames(comm.testaC_BG)= comm.testaC_BG$Plot
+
+comm.testaH_AG = comm.testaH_AG[,-1]
+comm.testaH_BG = comm.testaH_BG[,-1]
+comm.testaC_AG = comm.testaC_AG[,-1]
+comm.testaC_BG = comm.testaC_BG[,-1]
+
+beta.multi.abund(comm.testaH_AG)
+beta.multi.abund(comm.testaH_BG)
+beta.multi.abund(comm.testaC_AG)
+beta.multi.abund(comm.testaC_BG)
+
+
+commaH_AG_min_max = matrix(c(colSums(comm.testaH_AG[min_lui_plots,]),colSums(comm.testaH_AG[max_lui_plots,])), nrow = 2)
+commaH_BG_min_max = matrix(c(colSums(comm.testaH_BG[min_lui_plots,], na.rm = T),colSums(comm.testaH_BG[max_lui_plots,], na.rm = T)), nrow = 2)
+commaC_AG_min_max = matrix(c(colSums(comm.testaC_AG[min_lui_plots,]),colSums(comm.testaC_AG[max_lui_plots,])), nrow = 2)
+commaC_BG_min_max = matrix(c(colSums(comm.testaC_BG[min_lui_plots,]),colSums(comm.testaC_BG[max_lui_plots,])), nrow = 2)
+
+beta.multi.abund(commaH_AG_min_max)
+beta.multi.abund(commaH_BG_min_max)
+beta.multi.abund(commaC_AG_min_max)
+beta.multi.abund(commaC_BG_min_max)
+
+
+
+####################
+#### Collembola ####
+####################
+
 coll_traits = data.table(read_excel(('Traits/Collembola_Mites/Coll_Traits_NEW.xlsx')))
 coll_traits[, c( 'Size', 'Size_Adult', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales') := lapply(.SD, as.numeric),
             .SDcols = c( 'Size','Size_Adult',  'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales')]
@@ -315,19 +435,23 @@ coll_traits[, Gen_per_year := ifelse(Phenology == 'multivoltine', 3,
 coll_traits[, Species := gsub(' ', '_', Species)]
 coll_traits[, Species := gsub('__', '_', Species)]
 
+pca_coll_sp = dudi.pca(mice::complete(mice(coll_traits[, c( 'Size.log', 'Gen_per_year', 'Depth_preference', 'Repro_sex')])), scannf = FALSE, nf = 2)
+gg_coll_sp = fviz_pca(pca_coll_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                      col.ind = "steelblue",
+                      fill.ind = "white",
+                      col.var = "black")
+ggsave(gg_coll_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_coll.pdf', width = 6, height = 5)
+
 
 pca_species = dudi.pca(coll_traits[complete.cases(coll_traits[,c( 'Size.log', 'Gen_per_year', 'Depth_preference', 'Repro_sex')]),c( 'Size.log', 'Gen_per_year', 'Depth_preference', 'Repro_sex')], scannf = FALSE, nf = 3)
 pca_coll_species= fviz_pca_biplot(pca_species, geom = c("point"), repel = T, axes = c(1,2), title = 'Collembola')
 ggsave(pca_coll_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Collembola.pdf', width = 5, height = 5)    
 
-
-
-# Plot AEG43: only one individual, undefined, was found so we remove it
+# Plot AEG43: only one individual, undefined, was found so we remove the plot
 Abundances_coll = Abundances_all[Group_broad =='Collembola' & Plot != 'AEG43',]
 
 # Check number of species for each trait
 coll_traits[Species %in% Abundances_coll$Species , lapply(.SD, function(x){length(x[!is.na(x) & x != 'NA'])})]
-
 
 Coll_coverage = check_coverage(coll_traits, Abundances_coll, c( 'Size.log', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
 ), 'Species', 'Species')
@@ -341,7 +465,6 @@ fviz_pca_biplot(pca_coll, geom = c("point"), repel = T, axes = c(1,2), title = '
 
 cor.test(pca_coll$l1$RS1, env_data_lui[Plot %in% Coll_cwm_all$Plot,]$LUI)
 
-
 write.csv(Coll_cwm_all[, list( "col_Size" = Size.log,
                                "col_Depth" = Depth_preference,
                                "col_Gen_per_Year" = Gen_per_year,
@@ -349,12 +472,40 @@ write.csv(Coll_cwm_all[, list( "col_Size" = Size.log,
                                "Plot" = Plot ,
                                "Year" = Year     )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Coll_all.csv")
 
-### Mites
+
+# Non-weighted community traits
+
+Abundances_coll_presence_absence = Abundances_coll[, list(value = sum(value, na.rm = T), Year = 2019), by = list(Plot, Species)]
+Abundances_coll_presence_absence[value>1, value := 1]
+Coll_cwm_all_noweight = my_cwm(coll_traits, Abundances_coll_presence_absence, c( 'Size.log', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
+), 'Species', 'Species')
+
+write.csv(Coll_cwm_all_noweight[, list( "col_Size" = Size.log,
+                               "col_Depth" = Depth_preference,
+                               "col_Gen_per_Year" = Gen_per_year,
+                               "col_Sex" = Repro_sex_1,
+                               "Plot" = Plot ,
+                               "Year" = Year     )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Coll_all_noweight.csv")
+
+### Check turnover
+comm.test_coll = dcast(Abundances_coll,  Plot~Species, value.var = 'value', fill = 0)
+rownames(comm.test_coll)= comm.test_coll$Plot
+comm.test_coll = comm.test_coll[,-1]
+
+beta.multi.abund(comm.test_coll)
+
+comm_coll_min_max = matrix(c(colSums(comm.test_coll[min_lui_plots,]),colSums(comm.test_coll[max_lui_plots,])), nrow = 2)
+beta.multi.abund(comm_coll_min_max)
+
+########################
+#### Oribatid mites ####
+########################
+
 mites_traits = fread('Traits/Collembola_Mites/2019_Mite_fauna_Traits.csv')
 mites_traits[, Species := V1]
 
 # Correct some species names
-mites_traits[, Species := recode(Species,
+mites_traits[, Species := dplyr::recode(Species,
                                 # Carabodes_forsslundi
                                  'Ceratozetella_sellnicki' = 'Ceratozetes_sellnicki',
                                  'Nanhermannia_nanus' = 'Nanhermannia_nana',
@@ -363,16 +514,16 @@ mites_traits[, Species := recode(Species,
                                  'Phthiracarus_globosus' = 'Phthiracarus_globulus',
                                  'Poecilochthonius_italicus' = 'Poeliochthonius_italicus',
                                  'Poecilochthonius_spiciger' = 'Poeliochthonius_spiciger',
-                                 'Scutovertex_sp.' = 'Scutovertex_sp',
+                                 'Scutovertex_sp.' = 'Scutovertex_sp'
                                  )]
 
 
-mites_traits[, Habitat_spec := as.numeric(recode(Vertical_distribution.Morphotype,
+mites_traits[, Habitat_spec := as.numeric(dplyr::recode(Vertical_distribution.Morphotype,
                                      "non-spec" = '1',
                                      "soil" = '2',
                                      "surface" = '3',
                                      "litter" = '4'))]
-mites_traits[, Feeding_spec := as.numeric(recode(Feeding,
+mites_traits[, Feeding_spec := as.numeric(dplyr::recode(Feeding,
                                                 "omnivorous" = '1',
                                                 "herbifungivorous" = '2',
                                                 "herbivorous" = '3',
@@ -383,15 +534,16 @@ mites_traits[, Repro_sex := as.numeric(ifelse(Reproduction == 'parthenogenetic',
 
 mites_traits[, Mass.log := log(Mass)]
 
-pca_species = dudi.pca(mites_traits[,c( 'Mass.log', 'Feeding_spec', 'Habitat_spec', 'Repro_sex', 'DaystoAdult')], scannf = FALSE, nf = 3)
-pca_mites_species = fviz_pca_biplot(pca_species, geom = c("point"), repel = T, axes = c(1,2), title = 'Mites')
-ggsave(pca_mites_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Collembola.pdf', width = 5, height = 5)    
-
-
+pca_mites_sp = dudi.pca(mice::complete(mice(mites_traits[, c( 'Mass.log', 'Repro_sex', 'Feeding_spec', 'Habitat_spec')])), scannf = FALSE, nf = 2)
+gg_mites_sp = fviz_pca(pca_mites_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                      col.ind = "steelblue",
+                      fill.ind = "white",
+                      col.var = "black")
+ggsave(gg_mites_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_mites.pdf', width = 6, height = 5)
 
 
 Abundances_mites = Abundances_all[Group_fine=='Oribatida', ]
-Abundances_mites[!(Species %in% mites_traits$Species) & value > 0, unique(Species)]
+
 
 # For species id to genus level, we take the average or value of other species from the same genus if it's consistent (mean > 2sd)
 # Carabodes_sp: only one species
@@ -431,7 +583,6 @@ mites_traits = rbind(mites_traits, mites_traits[grepl('Trichoribates', Species),
                                                                                    size500_900, size900,  ash,  CuticuleCalcium, CuticuleNo, DaystoAdult, Species = 'Trichoribates_sp', Habitat_spec,Feeding_spec, Repro_sex, Mass.log)])
 
 
-
 mites_traits[Species %in% Abundances_mites$Species, lapply(.SD, function(x){length(x[!is.na(x)])}),]
 
 ### Calculate coverage and CWM
@@ -439,24 +590,13 @@ mites_traits[Species %in% Abundances_mites$Species, lapply(.SD, function(x){leng
 Mites_CC = check_coverage(mites_traits, Abundances_mites, c( 'Mass.log', 'Feeding_spec', 'Habitat_spec', 'Repro_sex', 'DaystoAdult'),
                        'Species', 'Species')
 Mites_CC[, average_coverage := mean(c(Mass.log,Feeding_spec, Habitat_spec, Repro_sex , DaystoAdult)), by = 1:nrow(Mites_CC)]
-Mites_CC = Mites_CC[average_coverage > 0.2,]
-
-Mites_CC[, -c(1, 2)][, lapply(.SD, min)]
-Mites_CC[, -c(1, 2)][, lapply(.SD, median)]
-Mites_CC[, -c(1, 2)][, lapply(.SD, max)]
-
 
 Mites_cwm_all = my_cwm(mites_traits, Abundances_mites, c( 'Mass.log', 'Feeding_spec', 'Habitat_spec', 'Repro_sex', 'DaystoAdult'),
                        'Species', 'Species')
 
 Mites_cwm_all = Mites_cwm_all[Plot %in% Mites_CC[average_coverage >= 0.2, Plot],]
- 
 
 pca_mites = dudi.pca(complete(mice(Mites_cwm_all[ ,c( 'Mass.log', 'Feeding_spec', 'Habitat_spec','DaystoAdult', 'Repro_sex_1')])), scannf = FALSE, nf = 3)
-fviz_pca_biplot(pca_mites, geom = c("point"), repel = T, axes = c(1,2), title = 'Mites')
-
-cor.test(pca_mites$l1$RS1, env_data_lui[Plot %in% Mites_cwm_all$Plot,]$LUI)
-
 
 write.csv(Mites_cwm_all[, list( "mites_Hab_spec" = Habitat_spec,
                                 "mites_Sex" = Repro_sex_1,
@@ -466,29 +606,57 @@ write.csv(Mites_cwm_all[, list( "mites_Hab_spec" = Habitat_spec,
                                 "Plot" = Plot,
                                 "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Mites_all.csv")
 
+# Non-weighted community traits
+
+Abundances_mites_presence_absence = Abundances_mites[, list(value = sum(value, na.rm = T), Year = 2019), by = list(Plot, Species)]
+Abundances_mites_presence_absence[value>1, value := 1]
+Mites_cwm_all_noweight = my_cwm(mites_traits, Abundances_mites_presence_absence, c( 'Mass.log', 'Feeding_spec', 'Habitat_spec', 'Repro_sex', 'DaystoAdult'),
+                       'Species', 'Species')
+
+
+write.csv(Mites_cwm_all_noweight[, list( "mites_Hab_spec" = Habitat_spec,
+                                "mites_Sex" = Repro_sex_1,
+                                "mites_Mass" = Mass.log,
+                                "mites_Feed_spec" = Feeding_spec,
+                                "mites_DaysAdult" = DaystoAdult,
+                                "Plot" = Plot,
+                                "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Mites_all_noweight.csv")
+
+
+
+### Check turnover
+comm.test_mites = dcast(Abundances_mites,  Plot~Species, value.var = 'value', fill = 0)
+rownames(comm.test_mites)= comm.test_mites$Plot
+comm.test_mites = comm.test_mites[,-1]
+
+beta.multi.abund(comm.test_mites)
+
+comm_mites_min_max = matrix(c(colSums(comm.test_mites[min_lui_plots,]),colSums(comm.test_mites[max_lui_plots,])), nrow = 2)
+beta.multi.abund(comm_coll_min_max)
+
 
 #### Myriapoda ####
 # Traits from Birkhofer et al. 2017 (Araneae)
-Birkhofer_myriapoda = data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Arthropods/Birkhofer_2017/Traits_Communities.xlsx", sheet = 'Chilopoda'))
-Birkhofer_myriapoda[, new_scientificName := get_gbif(gsub('\\.', ' ', Site)), by = Site]
-Abundance_myr = Abundances_all[Group_broad == 'Myriapoda' & Trophic_level == 'secondary.consumer.myriapod',]
-Abundance_myr[, new_scientificName := get_gbif(Species), by = Species]
-
-Abundance_myr[ , unique(new_scientificName[!new_scientificName %in% Birkhofer_myriapoda[ , unique(new_scientificName)]])]
-Birkhofer_myriapoda[ , unique(new_scientificName)]
-
-
-Birkhofer_myriapoda[, Size := weighted.mean(c(1, 2, 3), .SD), .SDcols = c('6-19mm', '19-32mm', '>32mm'), by = new_scientificName]
-Birkhofer_myriapoda[, Mobility := weighted.mean(c(0, 1), .SD), .SDcols = c('mobility.ow', 'mobility.high'), by = new_scientificName]
-
-Abundance_myr[, sum(value[new_scientificName %in% Birkhofer_myriapoda$new_scientificName])/sum(value), by = Plot][, range(V1, na.rm = T)]
-
+#Birkhofer_myriapoda = data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Arthropods/Birkhofer_2017/Traits_Communities.xlsx", sheet = 'Chilopoda'))
+#Birkhofer_myriapoda[, new_scientificName := get_gbif(gsub('\\.', ' ', Site)), by = Site]
+#Abundance_myr = Abundances_all[Group_broad == 'Myriapoda' & Trophic_level == 'secondary.consumer.myriapod',]
+#Abundance_myr[, new_scientificName := get_gbif(Species), by = Species]
+#
+#Abundance_myr[ , unique(new_scientificName[!new_scientificName %in% Birkhofer_myriapoda[ , unique(new_scientificName)]])]
+#Birkhofer_myriapoda[ , unique(new_scientificName)]
+#
+#
+#Birkhofer_myriapoda[, Size := weighted.mean(c(1, 2, 3), .SD), .SDcols = c('6-19mm', '19-32mm', '>32mm'), by = new_scientificName]
+#Birkhofer_myriapoda[, Mobility := weighted.mean(c(0, 1), .SD), .SDcols = c('mobility.ow', 'mobility.high'), by = new_scientificName]
+#
+#Abundance_myr[, sum(value[new_scientificName %in% Birkhofer_myriapoda$new_scientificName])/sum(value), by = Plot][, range(V1, na.rm = T)]
+#
 
 
 #### Ants/Hymenoptera: looked at BETSI and Global Ant Database, no data for the species we need
 # get_gbif_taxonomy(Abundances_all[Group_broad == 'Formicidae', unique(Species)])
 
-#Abundances_all[Group_broad %in% c('Formicidae', 'Hymenoptera'), sum(value), by = Species][order(V1, decreasing = T),]
+# Abundances_all[Group_broad %in% c('Formicidae', 'Hymenoptera'), sum(value), by = Species][order(V1, decreasing = T),]
 
 # Campanotus ligniperdus ,  Formica clara          ,  Formica fusca           , Formica pratensis     
 # Formica sanguinea      ,  Lasius alienus         ,  Lasius myops            , Lasius paralienus     

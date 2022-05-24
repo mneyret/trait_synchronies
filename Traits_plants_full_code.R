@@ -1756,19 +1756,26 @@ Data_cast[Myco_type %in% c(
   'Arbuscular mycorrhizaOther or undefined endomycorrhiza'
 ), Myco_type := 'Mixed']
 Data_cast[, Myco_type := factor(Myco_type)]
-pca_AG = dudi.pca(mice::complete(mice(Data_cast[, c("Height",
-                                                    "LDMC" ,
-                                                    "LeafN",
-                                                    "LeafP",
-                                                    "SLA_with_petiole" ,
-                                                    "SSD"  ,
-                                                    "Seed_mass")])))
-draw_dudi_mix(
-  Data = pca_AG,
-  c(1, 3),
-  save = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Ind_level/PlantsAG13.pdf',
-  new_var_names = c("Height"   ,        "LDMC"    ,         "LeafN"        ,    "LeafP"      ,      "SLA" , "SSD"  ,  "Seed_mass")
-)
+pca_AG = dudi.pca(mice::complete(mice(Data_cast[!(scientificName %in% c(list_trees, list_bushes, 'Corylus_avellana')),][, list(#"Height",
+                                                    Root_tissue_density,
+                                                    LDMC ,
+                                                    LeafN,
+                                                    LeafP,
+                                                    SLA_with_petiole ,
+                                                    SSD ,
+                                                    Seed_mass)])), scannf = FALSE, nf = 2)
+
+gg_plants = fviz_pca(pca_AG, title = '', repel = T, geom = 'point', alpha = 0.3,
+                     col.ind = "steelblue",
+                     fill.ind = "white",
+                     col.var = "black")
+ggsave(gg_plants, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_plants.pdf', width = 6, height = 5)
+#draw_dudi_mix(
+#  Data = pca_AG,
+#  c(1, 2),
+#  save = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Ind_level/PlantsAG13.pdf',
+#  new_var_names = c("Root_tissue_density"   ,        "LDMC"    ,         "LeafN"        ,    "LeafP"      ,      "SLA" , "SSD"  ,  "Seed_mass")
+#)
 
 pca_BG = dudi.mix(Data_cast[complete.cases(Data_cast[, c(
   "Fine_roots_diameter",
@@ -2108,6 +2115,28 @@ CWM_grasslands_AG_no_tree = wrapper_dbFD(
   'per_plot'
 )
 
+Abundances_presence_absence = Abundances[Year < 2019, list(Cover = sum(Cover, na.rm = T), Year = 'NA'), by = c('Plot', 'Species')]
+Abundances_presence_absence[Cover >0, Cover := 1]
+CWM_grasslands_AG_no_tree_noweight = wrapper_dbFD(
+  Trait_data0 =  unique(Species_trait_data_clean[!grepl('FOREST', Comment), .SD, .SDcols = colnames(Species_trait_data_clean)[colnames(Species_trait_data_clean) != 'traitSd']]),
+  Ab_data0 = Abundances_presence_absence[grepl('G', Plot)
+                        &
+                          !(Species %in% c(list_trees,  "Juniperus_communis")) #%***% Comment here if you want to keep trees in the calculation of the CWM
+                        , ],
+  trait_names = c(
+    "SLA_all",
+    "SLA_with_petiole",
+    "LDMC",
+    "LeafN",
+    "LeafP",
+    "Height",
+    "Seed_mass",
+    "SSD"
+  ),
+  threshold = 0.99,
+  'per_plot'
+)
+
 
 # In forests, Above-ground
 # Note: I have to remove 'Potentilla_sterilis' here as it crashes the function (that's because it shares no non-na trait
@@ -2139,6 +2168,33 @@ CWM_forests_AG = wrapper_dbFD(
 CWM_grasslands_BG_no_tree = wrapper_dbFD(
   Trait_data0 = unique(Species_trait_data_clean[!grepl('FOREST', Comment), .SD, .SDcols = colnames(Species_trait_data_clean)[colnames(Species_trait_data_clean) != 'traitSd']]),
   Ab_data0 = Abundances[grepl('G', Plot)
+                        &
+                          !(Species %in% c(list_trees,  "Juniperus_communis")) #%***% Comment here if you want to keep trees in the calculation of the CWM
+                        , ],
+  exclude_species = c(
+    'Persicaria_lapathifolium',
+    'Juncus_inflexus',
+    'Juncus_effusus',
+    'Geranium_dissectum',
+    'Chaerophyllum_aureum',
+    'Cruciata_laevipes'
+  ),
+  trait_names = c(
+    "Specific_root_length",
+    "Root_weight_ratio",
+    "Rooting_depth",
+    "Fine_roots_diameter",
+    "Root_tissue_density",
+    'Mycorrhizal_inf_int'
+  ),
+  threshold = 0.99,
+  'per_plot'
+)
+
+
+CWM_grasslands_BG_no_tree_no_weight = wrapper_dbFD(
+  Trait_data0 = unique(Species_trait_data_clean[!grepl('FOREST', Comment), .SD, .SDcols = colnames(Species_trait_data_clean)[colnames(Species_trait_data_clean) != 'traitSd']]),
+  Ab_data0 = Abundances_presence_absence[grepl('G', Plot)
                         &
                           !(Species %in% c(list_trees,  "Juniperus_communis")) #%***% Comment here if you want to keep trees in the calculation of the CWM
                         , ],
@@ -2317,6 +2373,29 @@ all_CWM_BG_no_tree = rbind(reformat_data(CWM_grasslands_BG_no_tree),
 fwrite(all_CWM_BG_no_tree, "CWM_Plants_BG_no_tree.csv")
 
 
+
+
+
+CWM_grasslands_AG_no_tree_noweight$CWM$Plot = sapply(rownames(CWM_grasslands_AG_no_tree_noweight$CWM), function(x){strsplit(x, '_')[[1]][1]})
+CWM_grasslands_BG_no_tree_no_weight$CWM$Plot = sapply(rownames(CWM_grasslands_BG_no_tree_no_weight$CWM), function(x){strsplit(x, '_')[[1]][1]})
+CWM_grasslands_AG_no_tree$CWM$Plot = sapply(rownames(CWM_grasslands_AG_no_tree$CWM), function(x){strsplit(x, '_')[[1]][1]})
+CWM_grasslands_BG_no_tree$CWM$Plot = sapply(rownames(CWM_grasslands_BG_no_tree$CWM), function(x){strsplit(x, '_')[[1]][1]})
+
+CWM_grasslands_AG_no_tree_noweight$CWM$Year = sapply(rownames(CWM_grasslands_AG_no_tree_noweight$CWM), function(x){strsplit(x, '_')[[1]][2]})
+CWM_grasslands_BG_no_tree_no_weight$CWM$Year = sapply(rownames(CWM_grasslands_BG_no_tree_no_weight$CWM), function(x){strsplit(x, '_')[[1]][2]})
+CWM_grasslands_AG_no_tree$CWM$Year = sapply(rownames(CWM_grasslands_AG_no_tree$CWM), function(x){strsplit(x, '_')[[1]][2]})
+CWM_grasslands_BG_no_tree$CWM$Year = sapply(rownames(CWM_grasslands_BG_no_tree$CWM), function(x){strsplit(x, '_')[[1]][2]})
+
+CWM_grasslands_AG_no_tree_noweight$CWM$SLA = CWM_grasslands_AG_no_tree_noweight$CWM$SLA_all
+CWM_grasslands_BG_no_tree_no_weight$CWM$SLA = CWM_grasslands_BG_no_tree_no_weight$CWM$SLA_all
+CWM_grasslands_AG_no_tree$CWM$SLA = CWM_grasslands_AG_no_tree$CWM$SLA_all
+CWM_grasslands_BG_no_tree$CWM$SLA = CWM_grasslands_BG_no_tree$CWM$SLA_all
+fwrite(CWM_grasslands_AG_no_tree_noweight$CWM, "~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Plants_AG_no_tree_noweight.csv")
+fwrite(CWM_grasslands_BG_no_tree_no_weight$CWM, "~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Plants_BG_no_tree_noweight.csv")
+fwrite(CWM_grasslands_AG_no_tree$CWM, "~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Plants_AG_no_tree.csv")
+fwrite(CWM_grasslands_BG_no_tree$CWM, "~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Plants_BG_no_tree.csv")
+
+
 all_FD_AG_no_tree = rbind(
   reformat_data(CWM_grasslands_AG_no_tree, 'FD'),
   reformat_data(CWM_forests_AG, 'FD')
@@ -2346,4 +2425,22 @@ FD_test = reformat_data(CWM_grasslands_for_Antonios, 'FD')
 
 fwrite(FD_test, "all_FD_no_tree_for_Antonios_NEW.csv")
 
-# Quick check
+
+
+
+### Check turnover
+data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
+max_lui_plots = data_lui[rank(LUI) > 140,Plot]
+
+library(betapart)
+comm.test = dcast(Abundances_grasslands[Year < 2019, list(value = sum(value, na.rm = T), Year = 'NA'), by = c('Plot', 'Species')],  Plot~Species, value.var = 'value', fill = 0)
+rownames(comm.test)= comm.test$Plot
+comm.test = comm.test[,-1]
+
+beta.multi.abund(comm.test)
+
+comm_min_max = matrix(c(colSums(comm.test[min_lui_plots,]),colSums(comm.test[max_lui_plots,])), nrow = 2)
+beta.multi.abund(comm_min_max)
+

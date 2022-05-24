@@ -151,3 +151,69 @@ write.csv(CWM_Protists_sec_cons[, list("Ps_Naked" = morpho_code_naked / (morpho_
                                        "Ps_Size" = Size,
                                        "Plot" = Plot,
                                        "Year" = Year)], '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Protists_sec_cons.csv')
+
+
+# Non-weighted community traits
+
+Cercozoa_abundance_format_presence_absence = Cercozoa_abundance_format[, list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)]
+Cercozoa_abundance_format_presence_absence[value>1, value := 1]
+
+CWM_Protists_noweight <- my_cwm(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), 
+                                Cercozoa_abundance_format_presence_absence, 
+                       trait_names, 'Genus', 'Genus')
+CWM_Protists_bact_noweight <- my_cwm(unique(Cercozoa_traits[nutrition_code %in% c('bacterial_cons') ,.SD, .SDcols = c('Genus',trait_names)]), 
+                                     Cercozoa_abundance_format_presence_absence, 
+                           trait_names, 'Genus', 'Genus')
+CWM_Protists_sec_cons_noweight <- my_cwm(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = c('Genus',trait_names)]), 
+                                         Cercozoa_abundance_format_presence_absence,
+                                trait_names, 'Genus', 'Genus')
+
+write.csv(CWM_Protists_noweight[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
+                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
+                              "P_Size" = Size,
+                              "Plot" = Plot,
+                              "Year" = Year)], '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Protists_noweight.csv')
+write.csv(CWM_Protists_bact_noweight[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
+                                   "Pb_Size" = Size,
+                                   "Plot" = Plot,
+                                   "Year" = Year)], '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Protists_bact_noweight.csv')
+
+write.csv(CWM_Protists_sec_cons_noweight[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
+                                       "Ps_Size" = Size,
+                                       "Plot" = Plot,
+                                       "Year" = Year)], '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Protists_sec_cons_noweight.csv')
+
+
+### Check turnover
+data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
+max_lui_plots = data_lui[rank(LUI) > 140,Plot]
+
+library(betapart)
+comm.test_patho = dcast(Cercozoa_abundance_format[nutrition_code == 'primary_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
+comm.test_bact = dcast(Cercozoa_abundance_format[nutrition_code == 'bacterial_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
+comm.test_sec = dcast(Cercozoa_abundance_format[nutrition_code == 'secondary_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
+
+rownames(comm.test_patho)= comm.test_patho$Plot
+rownames(comm.test_bact)= comm.test_bact$Plot
+rownames(comm.test_sec)= comm.test_sec$Plot
+comm.test_patho = comm.test_patho[,-1]
+comm.test_bact = comm.test_bact[,-1]
+comm.test_sec = comm.test_sec[,-1]
+
+beta.multi.abund(comm.test_patho)
+beta.multi.abund(comm.test_bact)
+beta.multi.abund(comm.test_sec)
+
+
+comm_patho_min_max = matrix(c(colSums(comm.test_patho[min_lui_plots,]),colSums(comm.test_patho[max_lui_plots,])), nrow = 2)
+comm_bact_min_max = matrix(c(colSums(comm.test_bact[min_lui_plots,]),colSums(comm.test_bact[max_lui_plots,])), nrow = 2)
+comm_sec_min_max = matrix(c(colSums(comm.test_sec[min_lui_plots,]),colSums(comm.test_sec[max_lui_plots,])), nrow = 2)
+
+
+beta.multi.abund(comm_patho_min_max)
+beta.multi.abund(comm_bact_min_max)
+beta.multi.abund(comm_sec_min_max)
+
+

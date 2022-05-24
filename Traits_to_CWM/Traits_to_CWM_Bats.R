@@ -12,7 +12,16 @@ library(mice)
 
 
 setwd("/Users/Margot/Desktop/Research/Senckenberg/Data/")
-Abundances_all = fread("Abundances/Dataset_clean.txt")
+# Abundances
+## Raw diversity
+allsp <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_diversity_GRL_BEXIS.txt")
+allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
+## Species information
+fgs <- fread("//Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_info_GRL_BEXIS.txt")
+fgs$Species = gsub(' $', '', fgs$Species )
+fgs$Species = gsub(' ', '_', fgs$Species )
+Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
+Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
 
 
 # Bats found in Germany, from: https://www.eurobats.org/sites/default/files/documents/pdf/National_Reports/Inf.MoP7_.20-National%20Implementation%20Report%20of%20Germany.pdf
@@ -54,13 +63,11 @@ gbif = get_gbif_taxonomy(lifecycle_traits$Species)
 lifecycle_traits$Lifespan = as.numeric(lifecycle_traits$Lifespan)
 lifecycle_traits$Offspring = as.numeric(lifecycle_traits$Offspring)
 lifecycle_traits$Female_mass = as.numeric(lifecycle_traits$Female_mass)
-ggplot(lifecycle_traits, aes(Offspring, log(Female_mass), color = Species %in% german_bats)) + geom_point() + geom_smooth(method = 'lm')
-ggplot(lifecycle_traits, aes(Offspring, Lifespan, color = Species %in% german_bats)) + geom_point() + geom_smooth(method = 'lm')
 
+# homogenizing species names
 lifecycle_traits[Species == 'Myotis_daubentoni', Species := 'Myotis_daubentonii']
 lifecycle_traits[Species == 'Myotis_bechsteini', Species := 'Myotis_bechsteinii']
 lifecycle_traits[Species == 'Myotis_brandti', Species := 'Myotis_brandtii']
-
 
 # Using data from Michela et al. 2014 for generation time
 gen_time <- data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Bats/doi_10.5061_dryad.gd0m3__v1/Generation\ Lenght\ for\ Mammals.xlsx"))
@@ -74,6 +81,8 @@ all_traits = merge.data.table(all_traits, gen_time[, list(GenLen_m14 = as.numeri
                                                           Species)], by = 'Species', all = T)
 
 all_traits[ , Mass.log := log(body.mass)]
+
+# Species present in the exploratories
 explo_species = c("Barbastella_barbastellus"  ,"Myotis_myotis"            , "Myotis_nattereri"    ,     "Myotis_sp"                ,
                   "Nyctaloid"                , "Nyctalus_leisleri"       ,  "Nyctalus_noctula"   ,      "Pipistrellus_nathusii"    ,
                   "Pipistrellus_pipistrellus", "Pipistrellus_pygmaeus"   ,  "Plecotus_sp") 
@@ -91,19 +100,19 @@ Myotis_traits = Bat_traits[Species %in% myotis_species, lapply(.SD, mean, na.rm 
 Plecotus_traits = Bat_traits[Species %in% plecotus_species, lapply(.SD, mean, na.rm = T), .SDcols = bat_traits2][, Species := 'Plecotus_sp']
 
 Bat_traits_full = rbindlist(list(Bat_traits[, .SD, .SDcols = c(bat_traits2, 'Species')], Nyctaloid_traits, Myotis_traits, Plecotus_traits), use.names=TRUE)
-Bats_CC = check_coverage(Bat_traits_full, Abundances_all[ Group_broad == 'Bats',], bat_traits2, 'Species', 'Species')
-
-Bat_traits_full[Species %in% explo_species,]
-Bats_CC[, -c(1,2)][,lapply(.SD, min)]
-Bats_CC[, -c(1,2)][,lapply(.SD, median)]
-Bats_CC[, -c(1,2)][,lapply(.SD, max)]
+Bats_CC = check_coverage(Bat_traits_full, Abundance_all[ Group_broad == 'Bats',], bat_traits2, 'Species', 'Species')
 
 # Species-level
-pca_bats = dudi.pca(Bat_traits_full[Species %in% german_bats, ..bat_traits2],  scannf = FALSE, nf = 2)
-fviz_pca(pca_bats)
+pca_bats_sp = dudi.pca(mice::complete(mice(Bat_traits_full[Species %in% explo_species, ..bat_traits2])), scannf = FALSE, nf = 2)
+gg_bats_sp = fviz_pca(pca_bats_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
+                       col.ind = "steelblue",
+                       fill.ind = "white",
+                       col.var = "black")
+ggsave(gg_bats_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_bats.pdf', width = 6, height = 5)
 
+Abundance_bats = Abundance_all[Species %in% Bat_traits_full$Species,]
 
-CWM_bats = my_cwm(Bat_traits_full, Abundances_all, bat_traits2, 'Species', 'Species')
+CWM_bats = my_cwm(Bat_traits_full, Abundance_bats, bat_traits2, 'Species', 'Species')
 
 pca = dudi.pca(complete(mice(CWM_bats[, lapply(.SD, mean), .SDcols = bat_traits2, by = Plot][, -1])), , scannf = FALSE, nf = 2)
 cwm = CWM_bats
@@ -127,17 +136,34 @@ fwrite(CWM_bats[, list(
 )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Bats.csv")
 
 
-CWM_bats_use = merge.data.table(CWM_bats_use, env_data_lui, by = 'Plot')
-CWM_bats_use[, (bat_traits) := lapply(.SD, function(x){
-  mod = lm(x ~ Clay   +       pH + Soil.depth + Temperature  + Precipitation      +  TWI  +  Grassland + Bulk.density)
-  return(residuals(mod))
-}), .SDcols = bat_traits]
+# Non-weighted community traits
 
-pca_bats = dudi.pca(CWM_bats_use[, .SD, .SDcols = bat_traits2[-c(4,6)]] , scannf = FALSE, nf = 3)
+Abundance_bats_presence_absence = Abundance_bats[, list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Species)]
+Abundance_bats_presence_absence[value>1, value := 1]
 
-quanti.coord <- supcol(pca_bats, data.frame(scale(CWM_bats_use[, c('Fertil.', 'LUI', 'Mowing','Grazing')])))$cosup * pca_bats$eig[1:3]^2
-pca_plot = fviz_pca(pca_bats, habillage = substr(CWM_bats_use$Plot, 1, 1), axes = c(1,2))
-fviz_add(pca_plot, quanti.coord, axes = c(1, 2), "arrow", color = "black", linetype = "solid",# repel = T,
-         addlabel = T)
+CWM_bats_noweight = my_cwm(Bat_traits_full, Abundance_bats_presence_absence, bat_traits2, 'Species', 'Species')
 
-# check : The effect of local land use and loss of forests on bats and nocturnal insects
+fwrite(CWM_bats_noweight[, list(
+  "bat_mass"= Mass.log,
+  "bat_lifespan"= Lifespan,
+  "bat_offspring"= Offspring   ,
+  Plot,
+  Year
+)], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_bats_noweight.csv")
+
+### Check turnover
+data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
+max_lui_plots = data_lui[rank(LUI) > 140,Plot]
+
+library(betapart)
+comm.test = dcast(Abundance_bats[!is.na(Species), list(value = sum(value, na.rm = T)), by = list(Plot, Species)],  Plot~Species, value.var = 'value', fill = 0)
+rownames(comm.test)= comm.test$Plot
+comm.test = comm.test[,-1]
+
+beta.multi.abund(comm.test)
+
+comm_min_max = matrix(c(colSums(comm.test[min_lui_plots,]),colSums(comm.test[max_lui_plots,])), nrow = 2)
+beta.multi.abund(comm_min_max)
+

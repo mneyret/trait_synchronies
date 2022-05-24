@@ -1,0 +1,241 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+  \usepackage{amssymb}
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={Trait synergies},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
+\ifluatex
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+
+\title{Trait synergies}
+\author{}
+\date{\vspace{-2.5em}}
+
+\begin{document}
+\maketitle
+
+Exploration of the trait analysis for trait synchrony.
+
+Parameters: environmental correction is FALSE, correction for the region
+is FALSE.
+
+\hypertarget{hypotheses}{%
+\subsection{Hypotheses}\label{hypotheses}}
+
+Check all hypotheses between traits and environmental drivers, and among
+traits
+
+\begin{table}
+\centering
+\begin{tabular}[t]{l|l|l|l|l|>{}r|>{}l}
+\hline
+Group & Trait\_short & Driver\_short & Expected & Justification & observed\_corr & Fit\_to\_expectations\\
+\hline
+ & Height & Grazing &  & Grazing selects for short & \textcolor[HTML]{46327E}{\textbf{-0.31}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-3}
+\cline{5-7}
+ & LDMC & Fertil. &  & More nutrients = fast & \textcolor[HTML]{33638D}{\em{-0.09}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-3}
+\cline{5-7}
+ &  & Grazing &  &  & \textcolor[HTML]{3D4E8A}{\textbf{-0.19}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{3-3}
+\cline{6-7}
+ & \multirow{-2}{*}{\raggedright\arraybackslash Seed\_mass} & Mowing & \multirow{-4}{*}{\raggedright\arraybackslash -} & \multirow{-2}{*}{\raggedright\arraybackslash Disturbance promotes dispersal} & \textcolor[HTML]{38598C}{\em{-0.14}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-7}
+ & SLA &  & \&\#43; &  & \textcolor[HTML]{25AB82}{\textbf{0.29}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{2-2}
+\cline{4-4}
+\cline{6-7}
+ & Specific\_root\_length & \multirow{-2}{*}{\raggedright\arraybackslash Fertil.} & + & \multirow{-2}{*}{\raggedright\arraybackslash More nutrients = fast} & \textcolor[HTML]{1FA187}{\textbf{0.24}} & \\
+\cline{2-6}
+ &  & TWI &  & Dry = collaboration & \textcolor[HTML]{443983}{\textbf{-0.28}} & \\
+\cline{3-3}
+\cline{5-6}
+ & \multirow{-2}{*}{\raggedright\arraybackslash Fine\_roots\_diameter} & Fertil. &  & Few nutrients = collaboration &  & \\
+\cline{2-3}
+\cline{5-5}
+ &  & TWI &  & Dry = collaboration & \multirow{-2}{*}{\raggedleft\arraybackslash \textcolor[HTML]{433E85}{\textbf{-0.26}}} & \\
+\cline{3-3}
+\cline{5-6}
+ & \multirow{-2}{*}{\raggedright\arraybackslash Mycorrhizal\_inf\_int} &  &  & Few nutrients = collaboration & \textcolor[HTML]{443983}{\textbf{-0.28}} & \multirow{-5}{*}{\raggedright\arraybackslash \cellcolor[HTML]{22A884}{\textbf{TRUE}}}\\
+\cline{2-2}
+\cline{5-7}
+ & Root\_tissue\_density & \multirow{-2}{*}{\raggedright\arraybackslash Fertil.} &  & More nutrients = fast & \textcolor[HTML]{39568C}{\em{-0.15}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-3}
+\cline{5-7}
+ & Root\_weight\_ratio & LUI &  & Slow : root storage & \textcolor[HTML]{481D6F}{\textbf{-0.39}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-3}
+\cline{5-7}
+\multirow{-13}{*}{\raggedright\arraybackslash Plants} & Rooting\_depth & Grazing & \multirow{-7}{*}{\raggedright\arraybackslash -} & Disturbance // height? & \textcolor[HTML]{3FBC73}{\textbf{0.39}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{1-7}
+ & bact\_anaer &  &  & Humidity selects anaerobic & \textcolor[HTML]{7AD151}{\textbf{0.53}} & \\
+\cline{2-2}
+\cline{5-6}
+ & bact\_nitr &  &  & More nitrification in wet soils? & \textcolor[HTML]{46C06F}{\textbf{0.41}} & \\
+\cline{2-2}
+\cline{5-6}
+ &  & \multirow{-3}{*}{\raggedright\arraybackslash TWI} &  & Easier to move if water & \textcolor[HTML]{1F9E89}{\textbf{0.22}} & \multirow{-3}{*}{\raggedright\arraybackslash \cellcolor[HTML]{22A884}{\textbf{TRUE}}}\\
+\cline{3-3}
+\cline{5-7}
+ & \multirow{-2}{*}{\raggedright\arraybackslash bact\_motil} & LUI &  & Disturbance promotes dispersal & \textcolor[HTML]{463480}{\textbf{-0.30}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{2-3}
+\cline{5-7}
+ & bact\_d1 &  &  &  & \textcolor[HTML]{20928C}{\textbf{0.16}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-2}
+\cline{6-7}
+ &  &  & \multirow{-6}{*}{\raggedright\arraybackslash +} & \multirow{-2}{*}{\raggedright\arraybackslash More nutrients makes it easier to grow} &  & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{4-5}
+\cline{7-7}
+ & \multirow{-2}{*}{\raggedright\arraybackslash bact\_Size} & \multirow{-3}{*}{\raggedright\arraybackslash Fertil.} & - & Slow strategy = big & \multirow{-2}{*}{\raggedleft\arraybackslash \textcolor[HTML]{463480}{\textbf{-0.30}}} & \\
+\cline{2-6}
+ &  & TWI &  & Anaerobics are slower & \textcolor[HTML]{21A585}{\textbf{0.26}} & \multirow{-2}{*}{\raggedright\arraybackslash \cellcolor[HTML]{22A884}{\textbf{TRUE}}}\\
+\cline{3-3}
+\cline{5-7}
+ & \multirow{-2}{*}{\raggedright\arraybackslash bact\_Time} & LUI &  & LUI promotes & \textcolor[HTML]{24878E}{\em{0.10}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-3}
+\cline{5-7}
+ & bact\_spor & TWI & \multirow{-3}{*}{\raggedright\arraybackslash +} & Humidity selects anaerobic & \textcolor[HTML]{33638D}{\em{-0.09}} & \cellcolor[HTML]{BBDF27}{\em{FALSE}}\\
+\cline{2-7}
+ & bact\_gensize &  &  & Slow/ stress resistance = more genes & \textcolor[HTML]{2F6B8E}{\em{-0.05}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-2}
+\cline{5-7}
+ & FB &  &  & Fungi 'slower' than bacteria & \textcolor[HTML]{424086}{\textbf{-0.25}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-2}
+\cline{5-7}
+ & CN &  &  & Less N when less nutrients available & \textcolor[HTML]{2D718E}{\em{-0.02}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-2}
+\cline{5-7}
+ & fun\_spore\_size & \multirow{-4}{*}{\raggedright\arraybackslash LUI} &  & Disturbance promotes dispersal & \textcolor[HTML]{1F9A8A}{\textbf{0.20}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{2-3}
+\cline{5-7}
+ & AMF & TWI & \multirow{-5}{*}{\raggedright\arraybackslash -} & AMF prefer dry & \textcolor[HTML]{2E6F8E}{\em{-0.03}} & \cellcolor[HTML]{22A884}{\em{TRUE}}\\
+\cline{2-7}
+\multirow{-16}{*}{\raggedright\arraybackslash Bact-fungi} & bact\_long &  &  &  & \textcolor[HTML]{1F968B}{\textbf{0.18}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{1-2}
+\cline{5-7}
+ & p1\_Testate &  &  &  & \textcolor[HTML]{463480}{\textbf{-0.30}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{2-2}
+\cline{6-7}
+ & p1\_Parasite &  &  &  & \textcolor[HTML]{4EC36B}{\textbf{0.43}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-2}
+\cline{6-7}
+\multirow{-3}{*}{\raggedright\arraybackslash Protists (bact. + primary)} & p1\_Size &  &  &  & \textcolor[HTML]{440154}{\textbf{-0.49}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{1-2}
+\cline{6-7}
+ & p2\_Testate &  &  &  & \textcolor[HTML]{1E9C89}{\textbf{0.21}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-2}
+\cline{6-7}
+\multirow{-2}{*}{\raggedright\arraybackslash Protists (pred.)} & p2\_Size &  &  &  & \textcolor[HTML]{3E4D8A}{\textbf{-0.20}} & \\
+\cline{1-2}
+\cline{6-6}
+ & aH\_Size &  &  &  & \textcolor[HTML]{3F4788}{\textbf{-0.22}} & \multirow{-2}{*}{\raggedright\arraybackslash \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}}\\
+\cline{2-2}
+\cline{6-7}
+ & aH\_Generalism &  &  &  & \textcolor[HTML]{28AE80}{\textbf{0.31}} & \cellcolor[HTML]{22A884}{\textbf{TRUE}}\\
+\cline{2-2}
+\cline{6-7}
+\multirow{-3}{*}{\raggedright\arraybackslash Arthropods (herbivores)} & aH\_Chewers &  &  &  & \textcolor[HTML]{2F6B8E}{\em{-0.05}} & \cellcolor[HTML]{BBDF27}{\em{FALSE}}\\
+\cline{1-2}
+\cline{6-7}
+ & aH\_Stratum\_herb &  &  &  & \textcolor[HTML]{23A983}{\textbf{0.28}} & \\
+\cline{2-2}
+\cline{6-6}
+ & aC\_Dispersal &  &  &  & \textcolor[HTML]{43BE71}{\textbf{0.40}} & \multirow{-2}{*}{\raggedright\arraybackslash \cellcolor[HTML]{22A884}{\textbf{TRUE}}}\\
+\cline{2-2}
+\cline{6-7}
+ & aC\_Size &  &  &  & \textcolor[HTML]{3C508B}{\textbf{-0.18}} & \cellcolor[HTML]{BBDF27}{\textbf{FALSE}}\\
+\cline{2-2}
+\cline{6-7}
+ & aC\_Extraint &  &  &  & \textcolor[HTML]{32658E}{\em{-0.08}} & \\
+\cline{2-2}
+\cline{6-6}
+\multirow{-5}{*}{\raggedright\arraybackslash Arthropods (predators)} & aC\_Stratum\_herb & \multirow{-14}{*}{\raggedright\arraybackslash LUI} & \multirow{-14}{*}{\raggedright\arraybackslash +} & \multirow{-13}{*}{\raggedright\arraybackslash LUI selects r-strategies} & \textcolor[HTML]{39568C}{\em{-0.15}} & \multirow{-2}{*}{\raggedright\arraybackslash \cellcolor[HTML]{BBDF27}{\em{FALSE}}}\\
+\hline
+\end{tabular}
+\end{table}
+
+\hypertarget{big-pca}{%
+\subsection{Big PCA}\label{big-pca}}
+
+\hypertarget{identification-of-strategy-axes-for-each-group}{%
+\subsection{Identification of strategy axes for each
+group}\label{identification-of-strategy-axes-for-each-group}}
+
+\hypertarget{environmental-pca}{%
+\subsubsection{Environmental PCA}\label{environmental-pca}}
+
+\hypertarget{plants-above--and-below-ground}{%
+\subsubsection{Plants, above- and
+below-ground}\label{plants-above--and-below-ground}}
+
+\end{document}
