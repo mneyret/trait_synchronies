@@ -1,3 +1,6 @@
+# This script takes as input the abundances and species-level traits of bird species found 
+# in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
+
 library(data.table)
 library(reshape2)
 library(vegan)
@@ -9,31 +12,43 @@ library(readxl)
 library(factoextra)
 library(dplyr)
 library(mice)
+library(betapart)
 
-setwd("/Users/Margot/Desktop/Research/Senckenberg/Data/")
-# Abundances
+setwd("~/Data")
+
+figures_path = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/'
+cwm_path = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data'
+matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Matched_trait_datasets/'
+
+# ############### #
+#### Load data ####
+# ############### #
+
+### Abundances 
 ## Raw diversity
-allsp <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_diversity_GRL_BEXIS.txt")
+allsp <- fread("Abundances/210112_EP_species_diversity_GRL_BEXIS.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
 allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
 ## Species information
-fgs <- fread("//Users/Margot/Desktop/Research/Senckenberg/Data/Abundances/210112_EP_species_info_GRL_BEXIS.txt")
+fgs <- fread("Abundances/210112_EP_species_info_GRL_BEXIS.txt")# https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
 fgs$Species = gsub(' $', '', fgs$Species )
 fgs$Species = gsub(' ', '_', fgs$Species )
 Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
 Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
 
+
+#### Trait data ####
 # Explo birds traits
-bird_traits = fread('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Birds/210819_explo_birdtraits_fromCat.csv')
+bird_traits = fread('~/Traits/Birds/210819_explo_birdtraits_fromCat.csv') # Partially from https://www.bexis.uni-jena.de/ddm/data/Showdata/20067, check with Caterina Penone when full dataset on Bexis
 bird_traits[grepl('Delichon_urbica', species_latin ),  species_latin:= 'Delichon_urbicum']
 
 # Pigot 2020 for strategies and trophic levels
-Traits_Pigot2020 <- data.table(read_excel("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Birds/Traits_Pigot2020.xlsx"))
+Traits_Pigot2020 <- data.table(read_excel("~/Traits/Birds/Traits_Pigot2020.xlsx")) # https://www.nature.com/articles/s41559-019-1070-4#Sec24 supplementary dataset 1
 
 # Avonet for strategies and trophic levels
-Avonet <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Birds/AVONET/ELEData/TraitData/AVONET1_BirdLife.csv")
+Avonet <- fread("~/Traits/Birds/AVONET/ELEData/TraitData/AVONET1_BirdLife.csv") # https://figshare.com/articles/dataset/AVONET_morphological_ecological_and_geographical_data_for_all_birds_Tobias_et_al_2021_Ecology_Letters_/16586228
 
 # Bird et al 2020 for generation time
-birds_gen_time = data.table(read_excel('/Users/Margot/Desktop/Research/Senckenberg/Data/Traits/Birds/Bird_et_al_2020.xlsx'))
+birds_gen_time = data.table(read_excel('~/Traits/Birds/Bird_et_al_2020.xlsx')) #https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/cobi.13486 Table S1
 birds_gen_time[, scientific_name := `Scientific name`]
 
 # Species matching based on gbif for McMahon et al. 2020
@@ -75,10 +90,8 @@ Traits_Pigot2020[grepl('Leiopicus_medius',      Traits_Pigot2020$Binomial),  Bin
 Traits_Pigot2020[grepl('Poecile_montanus',      Traits_Pigot2020$Binomial),  Binomial := 'Parus_montanus']
 Traits_Pigot2020[, species_latin := Binomial ]
 
-
 # Species matching based on gbif for Avonet
-Avonet = rbind(Avonet,
-                         rbind(Avonet[grepl('Corvus corone', Avonet$Species1),][, Species1 := 'Corvus_corone_cornix'],
+Avonet = rbind(Avonet, rbind(Avonet[grepl('Corvus corone', Avonet$Species1),][, Species1 := 'Corvus_corone_cornix'],
                                Avonet[grepl('Corvus corone', Avonet$Species1),][, Species1 := 'Corvus_corone_corone']))
 
 Avonet[grepl('Parus caeruleus', Avonet$Species1),     Species1 := 'Cyanistes_caeruleus']
@@ -103,7 +116,7 @@ bird_traits[!(species_latin %in% Traits_Pigot2020$species_latin), unique(species
 bird_traits[!(species_latin %in% Avonet$species_latin), unique(species_latin)]
 
 
-#### Merge
+### Merge
 bird_traits = merge.data.table(bird_traits, Traits_Pigot2020[, .SD, .SDcols = c('TrophicLevel', 'TrophicNiche','ForagingNiche','species_latin')],
 by = 'species_latin')
 bird_traits = merge.data.table(bird_traits, birds_gen_time[, .SD, .SDcols = c('Max_longevity', 'GenLength','species_latin')],
@@ -171,21 +184,19 @@ Abundances[(Species %in% bird_traits[trophic_level %in% c('insectivore','carnivo
 Abundances[(Species %in% bird_traits[!(trophic_level %in% c('insectivore','carnivore')),species_latin]) & value >0, unique(Plot)]
 
 
-
-
-### Species-level PCA
+#### Species-level PCA ####
 
 # Insectivores and Carnivore
 pca_birds_insect = dudi.pca(bird_traits[trophic_level %in% c('insectivore','carnivore'),][complete.cases(bird_traits[trophic_level %in% c('insectivore','carnivore'), ..trait_selection]), ..trait_selection], scannf = FALSE, nf = 3)
 pca_birds_insect_species= fviz_pca_biplot(pca_birds_insect, geom = c("point"), repel = T, axes = c(1,2), title = 'Insectivore birds')
-ggsave(pca_birds_insect_species,file= '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Results/Species_PCA_Birds_insect.pdf', width = 5, height = 5)    
+ggsave(pca_birds_insect_species,file= paste(figures_path, 'Species_PCA_Birds_insect.pdf', sep = ''), width = 5, height = 5)    
 
 pca_birds_sp = dudi.pca(mice::complete(mice(bird_traits[trophic_level %in% c('insectivore','carnivore'),list(GenLength, Incub.log =  log_incub,    NOffspring.log = log_offspring, Longevity.log = log_longevity, Body_len.log =log_body_len)])), scannf = FALSE, nf = 2)
 gg_birds_sp = fviz_pca(pca_birds_sp, title = '', repel = T, geom = 'point', alpha = 0.3,
                        col.ind = "steelblue",
                        fill.ind = "white",
                        col.var = "black")
-ggsave(gg_birds_sp, file = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/species_pca_birds.pdf', width = 6, height = 5)
+ggsave(gg_birds_sp, file = paste(figures_path, 'species_pca_birds.pdf', sep = ''), width = 6, height = 5)
 
 
 # Coverage
@@ -193,26 +204,10 @@ CC_birds_insect = check_coverage(bird_traits[trophic_level %in% c('insectivore',
                                  Abundances[Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'),species_latin],], 
                                  c(trait_selection),'species_latin', 'Species')
 
-# Community weighted mean
+#### Community weighted mean ####
 CWM_birds_insect = my_cwm(bird_traits[trophic_level %in% c('insectivore','carnivore'),], Abundances, c(trait_selection),'species_latin', 'Species')
 
-# Look at PCAs
-pca_ins  = dudi.pca(CWM_birds_insect[complete.cases(CWM_birds_insect[,.SD, .SDcols = c(trait_selection)]), .SD, .SDcols = c(trait_selection)], scannf = FALSE, nf = 3)
-
-pca = pca_ins
-cwm = CWM_birds_insect
-tot_pca = fviz_pca(pca, geom.ind = 'text')
-tot_pca
-quanti.coord <- supcol(pca, data.frame(scale(env_data_lui[Plot %in% cwm$Plot, c( 'LUI')])))$cosup * pca$eig[1:3]^2
-tot_pca12 <-fviz_add(tot_pca, quanti.coord, axes = c(1, 2), "arrow", color = "blue", linetype = "solid", repel = T,
-                     addlabel = T
-)
-tot_pca12
-cor.test(pca_herb$l1$RS1, env_data_lui[Plot %in% CWM_birds_herb$Plot,]$LUI)
-
-tot_pca12
-
-### Save data
+# Weighted community traits
 
 fwrite(CWM_birds_insect[, list( "Plot" = Plot               ,
                                 "Year" = Year,
@@ -222,7 +217,7 @@ fwrite(CWM_birds_insect[, list( "Plot" = Plot               ,
                                 "Bi_AgeMax" = log_longevity,
                                 "Bi_GenLength" = GenLength)
 
-], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_birds_insect.csv")
+], paste(cwm_path, "CWM_birds_insect.csv", sep = ''))
 
 # Non-weighted community traits
 
@@ -239,16 +234,18 @@ fwrite(CWM_birds_insect_noweight[, list( "Plot" = Plot               ,
                                 "Bi_AgeMax" = log_longevity,
                                 "Bi_GenLength" = GenLength)
                         
-], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_birds_insect_noweight.csv")
+], paste(cwm_path, "CWM_birds_insect_noweight.csv", sep = ''))
 
 
-### Check turnover
-data_lui <- fread("/Users/Margot/Desktop/Research/Senckenberg/Data/Environment/LUI_input_data/LUI_standardized_global.txt")
+#######################################
+# Check turnover accross LUI gradient #
+#######################################
+
+data_lui <- fread("Environment/LUI_input_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
 min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
 max_lui_plots = data_lui[rank(LUI) > 140,Plot]
 
-library(betapart)
 comm.test = dcast(Abundances[Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'), species_latin], list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Species)],  Plot~Species, value.var = 'value', fill = 0)
 rownames(comm.test)= comm.test$Plot
 comm.test = comm.test[,-1]
