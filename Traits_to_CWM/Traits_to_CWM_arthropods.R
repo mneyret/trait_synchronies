@@ -16,8 +16,8 @@ library(factoextra)
 
 setwd("~/Data")
 
-figures_path = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/'
-cwm_path = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data'
+figures_path = 'Results/'
+cwm_path = 'Data/CWM_data/'
 matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Matched_trait_datasets/'
 
 
@@ -27,10 +27,10 @@ matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/An
 
 ###### Abundances ####
 ## Raw diversity
-allsp <- fread("Abundances/210112_EP_species_diversity_GRL_BEXIS.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
+allsp <- fread("Data/Abundance_data/27706_3_Dataset/27706_3_data.csv") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
 allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
 ## Species information
-fgs <- fread("Abundances/210112_EP_species_info_GRL_BEXIS.txt")# https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
+fgs <- fread("Data/Abundance_data/27707_2_Dataset/27707_2_data.csv")# https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
 fgs$Species = gsub(' $', '', fgs$Species )
 fgs$Species = gsub(' ', '_', fgs$Species )
 Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)

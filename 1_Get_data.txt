@@ -1,0 +1,11 @@
+Get the following datasets to run the analyses:
+
+Environmental data folder:
+
+LUI_standardized_global.txt (Open Access)
+Land-use intensity from Bexis LUI tool: https://www.bexis.uni-jena.de/lui/LUICalculation/index
+Options: Year 2008-2017; standardised, global.
+
+31018_5_Dataset/31018_5_data.xslx (Not available yet)
+Aggregated environmental and land use covariates of grassland EPs
+https://www.bexis.uni-jena.de/ddm/data/Showdata/31018

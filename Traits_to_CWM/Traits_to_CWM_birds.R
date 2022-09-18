@@ -1,50 +1,29 @@
 # This script takes as input the abundances and species-level traits of bird species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
-library(data.table)
-library(reshape2)
-library(vegan)
-library(taxize)
-library(FD)
-library(readr)
-library(textclean)
-library(readxl)
-library(factoextra)
-library(dplyr)
-library(mice)
-library(betapart)
 
-setwd("~/Data")
+setwd("~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code")
 
-figures_path = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/'
-cwm_path = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data'
-matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Matched_trait_datasets/'
-
-# ############### #
-#### Load data ####
-# ############### #
-
-### Abundances 
-## Raw diversity
-allsp <- fread("Abundances/210112_EP_species_diversity_GRL_BEXIS.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
-allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
-## Species information
-fgs <- fread("Abundances/210112_EP_species_info_GRL_BEXIS.txt")# https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
-fgs$Species = gsub(' $', '', fgs$Species )
-fgs$Species = gsub(' ', '_', fgs$Species )
-Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
-Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
+figures_path = 'Results/'
+cwm_path = 'Data/CWM_data'
+#matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Matched_trait_datasets/'
 
 
-#### Trait data ####
-# Explo birds traits
+Abundance_birds = Abundance_all[Group_broad == "Birds",]
+
+
+# ************************ #
+#### 1. Load trait data ####
+# ************************ #
+
+# Birds trait compiled within the Exploratories
 bird_traits = fread('~/Traits/Birds/210819_explo_birdtraits_fromCat.csv') # Partially from https://www.bexis.uni-jena.de/ddm/data/Showdata/20067, check with Caterina Penone when full dataset on Bexis
 bird_traits[grepl('Delichon_urbica', species_latin ),  species_latin:= 'Delichon_urbicum']
 
 # Pigot 2020 for strategies and trophic levels
 Traits_Pigot2020 <- data.table(read_excel("~/Traits/Birds/Traits_Pigot2020.xlsx")) # https://www.nature.com/articles/s41559-019-1070-4#Sec24 supplementary dataset 1
 
-# Avonet for strategies and trophic levels
+# Avonet 
 Avonet <- fread("~/Traits/Birds/AVONET/ELEData/TraitData/AVONET1_BirdLife.csv") # https://figshare.com/articles/dataset/AVONET_morphological_ecological_and_geographical_data_for_all_birds_Tobias_et_al_2021_Ecology_Letters_/16586228
 
 # Bird et al 2020 for generation time
@@ -102,7 +81,6 @@ Avonet[grepl('Saxicola torquatus', Avonet$Species1),  Species1 := "Saxicola_rubi
 Avonet[grepl('Sylvia curruca', Avonet$Species1),      Species1 := "Sylvia_curucca"  ]
 Avonet[grepl('Leiopicus medius',      Avonet$Species1),  Species1:= 'Dendrocopos_medius']
 Avonet[grepl('Poecile montanus',      Avonet$Species1),  Species1:= 'Parus_montanus']
-
 Avonet[grepl('Linaria cannabina',      Avonet$Species1),  Species1:= 'Carduelis_cannabina']
 Avonet[grepl('Chloris chloris',        Avonet$Species1),  Species1:= 'Carduelis_chloris']
 Avonet[grepl('Spinus spinus',         Avonet$Species1),  Species1:= 'Carduelis_spinus']
@@ -125,7 +103,7 @@ bird_traits = merge.data.table(bird_traits, Avonet[, .SD, .SDcols = c('Primary.L
                                by = 'species_latin', all.x = T)
 
 
-## Check trophic levels, especially for omnivores
+## Check trophic levels, especially for omnivores. Omnivorous birds that also eat insects or or animals are classified as tertiary consumers
 bird_traits[, table(TrophicLevel, TrophicNiche)]
 
 bird_traits[Functional_Group == 'carnivore' , trophic_level  := 'carnivore']
@@ -136,6 +114,7 @@ bird_traits[Functional_Group == 'omnivore' & TrophicLevel == 'Herbivore', trophi
 bird_traits[Functional_Group == 'omnivore' & TrophicLevel == 'Omnivore', trophic_level  := 'insectivore']            
 
 
+# Transform traits
 bird_traits[, c('log_wing_len',
                 'log_body_len',
                 'log_tail_len',
@@ -168,6 +147,8 @@ bird_traits[, c('log_wing_len',
 bird_traits[, wing_body_ratio := wing_length_max/body_length_max]
 bird_traits[, log_offspring := log(as.numeric(clutch_size_max)*as.numeric(maximum_broods_per_year))]
 
+
+# We will actually use only a subset of traits
 trait_pols = c( 'GenLength',
                   "log_incub",
                   'log_offspring',
@@ -179,9 +160,10 @@ trait_morpho =c(
 trait_selection = c(trait_pols, trait_morpho)
 traits_main = c(trait_pols[trait_pols != 'tot_offspring'], 'log_body_m', 'wing_body_ratio')
 
+
 ### Compare species with traits and all species
-Abundances[(Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'),species_latin]), unique(Species)]
-Abundances[(Species %in% bird_traits[!(trophic_level %in% c('insectivore','carnivore')),species_latin]) & value >0, unique(Plot)]
+Abundance_birds[(Species %in% bird_traits[trophic_level %in% c('insectivore','carnivore'),species_latin]), unique(Species)]
+Abundance_birds[(Species %in% bird_traits[!(trophic_level %in% c('insectivore','carnivore')),species_latin]) & value >0, unique(Plot)]
 
 
 #### Species-level PCA ####
