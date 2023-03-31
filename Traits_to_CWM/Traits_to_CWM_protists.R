@@ -1,25 +1,12 @@
 # This script takes as input the abundances and species-level traits of protist taxa
 # and outputs a CWM matrix averaged for all considered years.
-library(car)
-library(readr)
-library(data.table)
-library(reshape2)
-library(vegan)
-library(Hmisc)
 
-setwd("~/Data")
-
-figures_path = '/Users/Margot/Desktop/Research/Senckenberg/Documents/Papers/Traits/Figures/'
-cwm_path = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data'
-matched_traits_path = '~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Matched_trait_datasets/'
-
-
-# ############### #
-#### Load data ####
-# ############### #
+# ******************* #
+#### 1. Load data ####
+# ****************** #
 
 # Size data provided by Kenneth Dumack, 2021
-Sizes = list('Filoreta'='≥51µm', 'Gromia'='≥51µm', 'Plasmodiophora'='≤10µm', 'Woronina'='≤10µm', 'Polymyxa-lineage_X'='≤10µm', 'Ligniera'='≤10µm',
+Size_raw = c('Filoreta'='≥51µm', 'Gromia'='≥51µm', 'Plasmodiophora'='≤10µm', 'Woronina'='≤10µm', 'Polymyxa-lineage_X'='≤10µm', 'Ligniera'='≤10µm',
              'Sorosphaerula'='≤10µm', 'Sorosphaera'='≤10µm', 'Polymyxa'='≤10µm', 'Spongospora_lineage_X'='≤10µm', 'Spongospora'='≤10µm', 'Phagomyxida_XX'='≤10µm',
              'Phagomyxa'='≤10µm', 'Hillenburgia'='≤10µm', 'Maullinia'='≤10µm', 'Arachnula'='≥51µm', 'Leptophryidae_X'='≥51µm', 'Leptophrys'='≥51µm',
              'Theratromyxa'='≥51µm', 'Platyreta'='≥51µm', 'Vernalophrys'='≥51µm', 'Planctomyxa'='31µm-50µm', 'Arachnomyxa'='31µm-50µm',
@@ -57,7 +44,7 @@ Sizes = list('Filoreta'='≥51µm', 'Gromia'='≥51µm', 'Plasmodiophora'='≤10
 
 
 
-Cercozoa_abundance <- data.table(read_excel("Abundances/Protists/Data_Sheet_3_Contrasting_Responses_of_Protistan_Plant_Parasites_and_Phagotrophs_to_Ecosystems_Land_Management_and_Soil_Properties/TableS5.xlsx"))
+Cercozoa_abundance <- data.table(read_excel("Data/Abundance_data/Contrasting_Responses_of_Protistan_Plant_Parasites_and_Phagotrophs_to_Ecosystems_Land_Management_and_Soil_Properties_TableS5.xlsx"))
 # Accessible from https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full, Table S5
 # Also includes trait data based on https://github.com/Kenneth-Dumack/Functional-Traits-Cercozoa-Endomyxa
 
@@ -70,16 +57,16 @@ Cercozoa_abundance_format = melt.data.table(Cercozoa_abundance, id.vars = colnam
                      variable.name = 'Plot_Year')
 Cercozoa_abundance_format[, c('Plot', 'Year') := list(paste(substr(Plot_Year, 1, 3), substr(Plot_Year, 5, 6), sep = ''),
                      substr(Plot_Year, 8, 9))]
-
+Cercozoa_abundance_format[, value := as.numeric(value)]
 
 Cercozoa_traits = unique(Cercozoa_abundance_format[, list(Genus, nutrition, morphology, locomotion, Plot_Year, Plot, Year)])
-Cercozoa_traits[, Size := Sizes[Genus]]
+Cercozoa_traits[, Size_raw  := Size_raw[Genus], by = Genus]
 
-Cercozoa_traits[, Size := as.numeric(Recode(Sizes,
-                                    " '≤10µm' = 1;
-                                     '≥51µm' = 4;
-                                     '11µm-30µm' = 2;
-                                     '31µm-50µm'  = 3"
+Cercozoa_traits[, Size := as.numeric(Recode(Size_raw,
+                                    " '≤10µm' = 5;
+                                     '≥51µm' = 80;
+                                     '11µm-30µm' = 20;
+                                     '31µm-50µm'  = 40"
                                      ))]
 # Recoding the main traits
 Cercozoa_traits[, c('locomotion_code',
@@ -138,53 +125,59 @@ Cercozoa_abundance_format[, nutrition_code:=  dplyr::recode(nutrition,
                                                                  autotroph = 'primary_prod'))]
 
 
-# ############## #
-#### Output ####
-# ############## #
 
+# Save species-matched trait data
+traitUnits = c("µm","unitless","unitless","unitless")
+traitDescription = c("Cell size",
+                     "Nutrition",
+                     'Morphological characteristics',
+                     'Locomotion')
 
-# Species-level strategies
-# Bacterial consumers
-data_bact = Cercozoa_traits[nutrition_code == 'bacterial_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Sizes != 'NA',]
-plot_bact = ggplot(data_bact, aes(Sizes, morpho_code)) + ylab('Morphology') + xlab('Size') +
-  geom_jitter(width = 0.1, height = 0.1, alpha = 0.5) + theme_bw()
-cor.test(data_bact$Naked, data_bact$Size)
+traitDataID = c("NA","Bexis ID 24468, 24426","Bexis ID 24468, 24426","Bexis ID 24468, 24426")
 
-# Secondary consumers
-data_sec = Cercozoa_traits[nutrition_code == 'secondary_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Sizes != 'NA',]
-plot_sec = ggplot(data_sec, aes(Sizes, morpho_code)) + ylab('Morphology') + xlab('Size') +
-  geom_jitter(width = 0.1, height = 0.1, alpha = 0.5) + theme_bw()
-cor.test(data_sec$Naked, data_sec$Size)
+traitRef = c("Provided by K. Dumack",'https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112')
 
-cor.test(data_sec$Size, data_sec$Naked_amoeba)
+names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('Size', 'nutrition','morphology','locomotion')
 
+Cercozoa_trait_melt = melt.data.table(unique(Cercozoa_traits[, .SD, .SDcols = c('Size_raw', 'nutrition', 'morphology',  'locomotion','Genus')]), id.vars = c( 'Genus'), , variable.name = 'traitName', value.name = 'traitValue')
+Melted_traits_info = add_info(Cercozoa_trait_melt[traitName %in% c('Size_raw','nutrition', 'morphology',  'locomotion')], traitRefs = traitRef, traitDataIDs = traitDataID, traitDescriptions = traitDescription, traitUnits = traitUnits, traitsOnly = TRUE)
+Melted_traits_info[traitName == 'Size_raw', c('traitName', 'traitValue') := list('Size', gsub('µm', '', traitValue)) ]
+fwrite(Melted_traits_info, "Data/Temporary_data/Cercozoa_traits.csv")
 
-### Coverage
-CC_Protists = check_coverage(unique(Cercozoa_traits[,.SD, .SDcols = !c('Family')]), 
-                             Cercozoa_abundance_format, trait_names, 'Genus', 'Genus')
-CC_Protists_prim_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'primary_cons',.SD, .SDcols = !c('Family')]), 
-                                Cercozoa_abundance_format[nutrition_code == 'primary_cons',], trait_names[trait_names != 'nutrition_code']
-                                , 'Genus', 'Genus')
-CC_Protists_bacterial_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'bacterial_cons',.SD, .SDcols = !c('Family')]), 
+# ************************** #
+#### 2. Species-level PCA ####
+# ************************** #
+
+# We're using only the size trait
+
+## Bacterial consumers
+#data_bact = Cercozoa_traits[nutrition_code == 'bacterial_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Size != 'NA',]
+#plot_bact = ggplot(data_bact, aes(Size, morpho_code)) + ylab('Morphology') + xlab('Size') +
+#  geom_jitter(width = 0.01, height = 0.1, alpha = 0.5) + theme_bw()
+#
+## Secondary consumers
+#data_sec = Cercozoa_traits[nutrition_code == 'secondary_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Size != 'NA',]
+#plot_sec = ggplot(data_sec, aes(Size, morpho_code)) + ylab('Morphology') + xlab('Size') +
+#  geom_jitter(width = 0.1, height = 0.1, alpha = 0.5) + theme_bw()
+#cor.test(data_sec$Naked, data_sec$Size)
+#
+#cor.test(data_sec$Size, data_sec$Naked_amoeba)
+#
+
+# ********************************** #
+#### 3. Community-weighted traits ####
+# ********************************** #
+# Coverage
+CC_Protists  <- check_coverage(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), Cercozoa_abundance_format[value >0,], trait_names, 'Genus', 'Genus')
+
+CC_Protists_bact <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'bacterial_cons',.SD, .SDcols = c('Genus',trait_names)]), 
                                         Cercozoa_abundance_format[nutrition_code == 'bacterial_cons',], trait_names[trait_names != 'nutrition_code'], 'Genus', 'Genus')
-
-
-Cercozoa_traits[nutrition_code == 'secondary_cons', length(Size[!is.na(Size)])]
-Cercozoa_abundance_format[nutrition_code == 'secondary_cons',]
-CC_Protists_sec_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = !c('Family')]), 
-                                Cercozoa_abundance_format[nutrition_code == 'secondary_cons',], trait_names[trait_names != 'nutrition_code'], 'Genus', 'Genus')
+CC_Protists_sec_cons <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = c('Genus',trait_names)]), 
+                                Cercozoa_abundance_format[nutrition_code == 'secondary_cons',], "Size", 'Genus', 'Genus')
 
 
 ### CWM
-CWM_Protists <- my_cwm(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), 
-                                Cercozoa_abundance_format, 
-                                trait_names, 'Genus', 'Genus')
-
-test = merge(env_data_lui, CWM_Protists[, list(P_patho = mean(nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons)),
-                                               Naked_amoeba_1), by = Plot], by = 'Plot')
-
-cor.test(test$Naked_amoeba_1, test$LUI)
-
+CWM_Protists <- my_cwm(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), Cercozoa_abundance_format, trait_names, 'Genus', 'Genus')
 CWM_Protists_bact<- my_cwm(unique(Cercozoa_traits[nutrition_code %in% c('bacterial_cons') ,.SD, .SDcols = c('Genus',trait_names)]), 
                                 Cercozoa_abundance_format, 
                                 trait_names, 'Genus', 'Genus')
@@ -193,70 +186,130 @@ CWM_Protists_sec_cons <- my_cwm(unique(Cercozoa_traits[nutrition_code == 'second
                             trait_names, 'Genus', 'Genus')
 
 
-cor.test(CWM_Protists_bact$morpho_code_naked, CWM_Protists_bact$Size)
-cor.test(CWM_Protists_sec_cons$morpho_code_naked, CWM_Protists_sec_cons$Size)
-cor.test(CWM_Protists_sec_cons$morpho_code_naked, CWM_Protists_sec_cons$Size)
 
-test = merge(env_data_lui, CWM_Protists_sec_cons[, mean(Naked_amoeba_1), by = Plot], by = 'Plot')
-cor.test(test$LUI, test$V1)
+### Melt and merge
+# We need a few more steps because some of the traits are qualitative
+CWM_CC_protists = melt.data.table(CWM_Protists[, list(Plot, Year = paste('20', as.character(Year), sep = ''), Size, nutrition_code_bacterial_cons, traitCoverage = 1-nutrition_code_NA, nutrition_code_primary_cons, nutrition_code_secondary_cons)], id.vars = c('Plot', 'Year', 'traitCoverage'), variable.name = "traitName", value.name = 'traitValue')
 
-write.csv(CWM_Protists[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
-                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
-                              "P_Size" = Size,
-                                        "Plot" = Plot,
-                                        "Year" = Year)], paste(cwm_path, 'CWM_Protists.csv',sep = ''))
-write.csv(CWM_Protists_bact[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
-                                        "Pb_Size" = Size,
-                                        "Plot" = Plot,
-                                        "Year" = Year)],  paste(cwm_path, 'CWM_Protists_bact.csv',sep = ''))
+CWM_CC_Protists_bact = merge.data.table(melt.data.table(CWM_Protists_bact[, list(Year = paste('20', as.character(Year), sep = ''), Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                        melt.data.table(CC_Protists_bact[, list(Year = paste('20', as.character(Year), sep = ''), Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Protists_sec_cons = merge.data.table(melt.data.table(CWM_Protists_sec_cons[, list(Year = paste('20', as.character(Year), sep = ''), Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                            melt.data.table(CC_Protists_sec_cons[, list(Year = paste('20', as.character(Year), sep = ''), Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
 
-write.csv(CWM_Protists_sec_cons[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
-                                       "Ps_Size" = Size,
-                                       "Plot" = Plot,
-                                       "Year" = Year)],  paste(cwm_path, 'CWM_Protists_sec_cons.csv',sep = ''))
+# Add info
+# Size, nutrition_code_bacterial_cons, nutrition_code_primary_cons, nutrition_code_secondary_cons
+traitUnits = c("µm","%","%","%")
+traitDescription = c("Cell size",
+                     "Proportion of bacterivore",
+                     'Proportion of primary consumers (plant parasites)',
+                     'Proportion of secondary consumers (not-plant parasites, eukaryvores, omnivores)')
+
+traitDataID = c("NA","Bexis ID 24468, 24426","Bexis ID 24468, 24426","Bexis ID 24468, 24426")
+
+traitRef = c("Provided by K. Dumack",'https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112')
+
+names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('Size', 'nutrition_code_bacterial_cons','nutrition_code_primary_cons','nutrition_code_secondary_cons')
 
 
-# Non-weighted community traits
+CWM_CC_protists = add_info(CWM_CC_protists, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
+CWM_CC_protists_bact = add_info(CWM_CC_Protists_bact, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
+CWM_CC_protists_sec_cons = add_info(CWM_CC_Protists_sec_cons, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
 
-Cercozoa_abundance_format_presence_absence = Cercozoa_abundance_format[, list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)]
+fwrite(CWM_CC_protists, "Data/CWM_data/CWM_protists.csv")
+fwrite(CWM_CC_protists_bact, "Data/CWM_data/CWM_protists_bact.csv")
+fwrite(CWM_CC_protists_sec_cons, "Data/CWM_data/CWM_protists_sec_cons.csv")
+
+
+#write.csv(CWM_Protists[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
+#                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
+#                              "P_Size" = Size,
+#                                        "Plot" = Plot,
+#                                        "Year" = Year)], paste(cwm_path, 'CWM_Protists.csv',sep = ''))
+#write.csv(CWM_Protists_bact[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
+#                                        "Pb_Size" = Size,
+#                                        "Plot" = Plot,
+#                                        "Year" = Year)],  paste(cwm_path, 'CWM_Protists_bact.csv',sep = ''))
+#
+#write.csv(CWM_Protists_sec_cons[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
+#                                       "Ps_Size" = Size,
+#                                       "Plot" = Plot,
+#                                       "Year" = Year)],  paste(cwm_path, 'CWM_Protists_sec_cons.csv',sep = ''))
+#
+
+
+# ************************************** #
+#### 4. Non-weighted community traits ####
+# ************************************** #
+
+Cercozoa_abundance_format_presence_absence = Cercozoa_abundance_format[, list(value = sum(value, na.rm = T), Year = 'NA', nutrition_code), by = list(Plot, Genus)]
 Cercozoa_abundance_format_presence_absence[value>1, value := 1]
 
-CWM_Protists_noweight <- my_cwm(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), 
-                                Cercozoa_abundance_format_presence_absence, 
-                       trait_names, 'Genus', 'Genus')
-CWM_Protists_bact_noweight <- my_cwm(unique(Cercozoa_traits[nutrition_code %in% c('bacterial_cons') ,.SD, .SDcols = c('Genus',trait_names)]), 
-                                     Cercozoa_abundance_format_presence_absence, 
+# Coverage
+CC_Protists_noweight  <- check_coverage(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), Cercozoa_abundance_format_presence_absence[value >0,], trait_names, 'Genus', 'Genus')
+CC_Protists_bact_noweight <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'bacterial_cons',.SD, .SDcols = c('Genus',trait_names)]), 
+                                   Cercozoa_abundance_format_presence_absence[nutrition_code == 'bacterial_cons',], trait_names, 'Genus', 'Genus')
+CC_Protists_sec_cons_noweight <- check_coverage(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = c('Genus',trait_names)]), 
+                                       Cercozoa_abundance_format_presence_absence[nutrition_code == 'secondary_cons',], "Size", 'Genus', 'Genus')
+
+### CWM
+CWM_Protists_noweight <- my_cwm(unique(Cercozoa_traits[ ,.SD, .SDcols = c('Genus',trait_names)]), Cercozoa_abundance_format_presence_absence, trait_names, 'Genus', 'Genus')
+CWM_Protists_bact_noweight<- my_cwm(unique(Cercozoa_traits[nutrition_code %in% c('bacterial_cons') ,.SD, .SDcols = c('Genus',trait_names)]), 
+                           Cercozoa_abundance_format_presence_absence, 
                            trait_names, 'Genus', 'Genus')
 CWM_Protists_sec_cons_noweight <- my_cwm(unique(Cercozoa_traits[nutrition_code == 'secondary_cons',.SD, .SDcols = c('Genus',trait_names)]), 
-                                         Cercozoa_abundance_format_presence_absence,
+                                Cercozoa_abundance_format_presence_absence,
                                 trait_names, 'Genus', 'Genus')
 
-write.csv(CWM_Protists_noweight[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
-                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
-                              "P_Size" = Size,
-                              "Plot" = Plot,
-                              "Year" = Year)], paste(cwm_path, "CWM_Protists_noweight.csv",sep = ''))
-write.csv(CWM_Protists_bact_noweight[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
-                                   "Pb_Size" = Size,
-                                   "Plot" = Plot,
-                                   "Year" = Year)], paste(cwm_path, "CWM_Protists_bact_noweight.csv",sep = ''))
-
-write.csv(CWM_Protists_sec_cons_noweight[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
-                                       "Ps_Size" = Size,
-                                       "Plot" = Plot,
-                                       "Year" = Year)], paste(cwm_path, "CWM_Protists_sec_cons_noweight.csv",sep = ''))
 
 
-# ############## #
-#### Turnover ####
-# ############## #
-data_lui <- fread("Environment/LUI_input_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
+### Melt and merge
+# We need a few more steps because some of the traits are qualitative
+CWM_CC_protists_noweight = melt.data.table(CWM_Protists_noweight[, list(Plot, Year, Size, nutrition_code_bacterial_cons, traitCoverage = 1-nutrition_code_NA, nutrition_code_primary_cons, nutrition_code_secondary_cons)], id.vars = c('Plot', 'Year', 'traitCoverage'), variable.name = "traitName", value.name = 'traitValue')
+
+CWM_CC_Protists_bact_noweight = merge.data.table(melt.data.table(CWM_Protists_bact_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                        melt.data.table(CC_Protists_bact_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Protists_sec_cons_noweight = merge.data.table(melt.data.table(CWM_Protists_sec_cons_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                            melt.data.table(CC_Protists_sec_cons_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+
+
+# Add info and export
+
+
+CWM_CC_protists_noweight = add_info(CWM_CC_protists_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
+CWM_CC_protists_bact_noweight = add_info(CWM_CC_Protists_bact_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
+CWM_CC_protists_sec_cons_noweight = add_info(CWM_CC_Protists_sec_cons_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
+
+fwrite(CWM_CC_protists_noweight, "Data/CWM_data/CWM_protists_noweight.csv")
+fwrite(CWM_CC_protists_bact_noweight, "Data/CWM_data/CWM_protists_bact_noweight.csv")
+fwrite(CWM_CC_protists_sec_cons_noweight, "Data/CWM_data/CWM_protists_sec_cons_noweight.csv")
+
+#write.csv(CWM_Protists_noweight[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
+#                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
+#                              "P_Size" = Size,
+#                              "Plot" = Plot,
+#                              "Year" = Year)], paste(cwm_path, "CWM_Protists_noweight.csv",sep = ''))
+#write.csv(CWM_Protists_bact_noweight[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
+#                                   "Pb_Size" = Size,
+#                                   "Plot" = Plot,
+#                                   "Year" = Year)], paste(cwm_path, "CWM_Protists_bact_noweight.csv",sep = ''))
+#
+#write.csv(CWM_Protists_sec_cons_noweight[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
+#                                       "Ps_Size" = Size,
+#                                       "Plot" = Plot,
+#                                       "Year" = Year)], paste(cwm_path, "CWM_Protists_sec_cons_noweight.csv",sep = ''))
+
+
+# ****************** #
+#### 5. Turnover ####
+# ***************** #
+
+data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
 min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
 max_lui_plots = data_lui[rank(LUI) > 140,Plot]
 
-library(betapart)
+
 comm.test_patho = dcast(Cercozoa_abundance_format[nutrition_code == 'primary_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
 comm.test_bact = dcast(Cercozoa_abundance_format[nutrition_code == 'bacterial_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
 comm.test_sec = dcast(Cercozoa_abundance_format[nutrition_code == 'secondary_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)

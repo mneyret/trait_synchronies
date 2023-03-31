@@ -1,6 +1,6 @@
 Get the following datasets to run the analyses:
 
-Environmental data folder:
+#### Environmental data folder:
 
 LUI_standardized_global.txt (Open Access)
 Land-use intensity from Bexis LUI tool: https://www.bexis.uni-jena.de/lui/LUICalculation/index
@@ -9,3 +9,52 @@ Options: Year 2008-2017; standardised, global.
 31018_5_Dataset/31018_5_data.xslx (Not available yet)
 Aggregated environmental and land use covariates of grassland EPs
 https://www.bexis.uni-jena.de/ddm/data/Showdata/31018
+
+
+#### Abundance data folder:
+
+## Synthesis dataset summarising all abundances:
+27707_2_Dataset/27707_2_data from https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
+27706_3_Dataset/27706_3_data https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
+(not yet open but some individual groups can be accessed freely - see references in the supplementaries)
+
+## Arthropod abundance data
+21969_4_Dataset/21969_4_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/21969
+
+## Protists: joint abundance and trait data
+Contrasting_Responses_of_Protistan_Plant_Parasites_and_Phagotrophs_to_Ecosystems_Land_Management_and_Soil_Properties_TableS5.xls from https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full, Table S5
+
+#### Trait data folder:
+
+## Moth and butterflies
+UK_butterflies/data/ecological_traits_format.csv from https://catalogue.ceh.ac.uk/documents/5b5a13b6-2304-47e3-9c9d-35237d1232c6 (open)
+
+European_Maghreb_Butterfly_Trait_data_v1.2/European_Maghreb_Butterfly_Trait_data_v1.2.xlsx from https://butterflytraits.github.io/European-Butterfly-Traits/index.html (open)
+
+Butterflies_Boerschig2013.xlsx from https://ars.els-cdn.com/content/image/1-s2.0-S1439179113001199-mmc1.pdf
+
+23926_2_Dataset/23926_2_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/23926 (open)
+
+21228_2_Dataset/21228_2_data.csv from  https://www.bexis.uni-jena.de/ddm/data/Showdata/21228 (open)
+
+## Other arthropods
+
+ArthropodSpeciesTraits.csv from https://datadryad.org/stash/dataset/doi:10.5061/dryad.53ds2
+
+31122_6_Dataset/31122_6_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/31122 (open)
+
+## Birds 
+
+Traits_Pigot2020.xlsx from https://www.nature.com/articles/s41559-019-1070-4 # supplementary dataset 1
+
+AVONET1_BirdLife.csv from https://figshare.com/articles/dataset/AVONET_morphological_ecological_and_geographical_data_for_all_birds_Tobias_et_al_2021_Ecology_Letters_/16586228
+
+Bird_et_al_2020.xlsx from https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/cobi.13486 Table S1
+
+## bats
+
+conenna_et_al_2021_trait_data_csv.csv from https://datadryad.org/stash/dataset/doi:10.5061/dryad.tmpg4f4xm
+
+Life_cycle_Wilkinson2002.xlsx from https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1046%2Fj.1474-9728.2002.00020.x&file=ACEL_020_sm_table.doc
+
+Trait_data/Generation Lenght for Mammals.xlsx from https://natureconservation.pensoft.net/articles.php?id=1343&element_type=5&display_type=element&element_id=31

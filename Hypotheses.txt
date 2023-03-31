@@ -1,48 +1,47 @@
 Group	Trait_short	Use	Expected_direction	Direct/indirect	Disturbance	ref_dist	Resources	ref_res
-Plants (AG)	SLA	y	++	D	+ disturbance favours fast-growing species		+ more nutrients allow for 'cheap' leaves	
-Plants (AG)	Seed_mass	y	--	D	- disturbance selects for smaller seeds (= colonisation) 	Diaz et al. 2016		
-Plants (AG)	LDMC	y	--	D	Tougher = slow			
-Plants (AG)	LeafN	y	++	D			+ more nutrients allow for 'cheap' leaves	Diaz et al. 2016
-Plants (AG)	LeafP	y	++	D			+ more nutrients allow for 'cheap' leaves	
-Plants (BG)	Root_tissue_density	y	--	D			+  conservative and/or 'collaboration' => if few nutrients,  need for collaboration	Bergmann et al. 2020
-Arthropods (above, omnicarnivores)	Aoc_BodySize	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
-Arthropods (above, omnicarnivores)	Aoc_Dispersal	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
-Arthropods (above, herbivores)	Ah_BodySize	y	+/-	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
-Arthropods (above, herbivores)	Ah_Dispersal	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
-Arthropods (above, herbivores)	Ah_Generalism	y	++					
-Arthropods (above, herbivores)	Ah_Generations	y	++	I				
-Arthropods (below, predators)	Aoc_b_BodySize	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
-Arthropods (below, predators)	Aoc_b_Dispersal	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
-Arthropods (below, herbivores)	Ah_b_BodySize	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
-Arthropods (below, herbivores)	Ah_b_Dispersal	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
-Arthropods (below, herbivores)	Ah_b_Generalism	y	++					
-Birds (insectivorous)	Bi_Size	y	++		more = fast			
-Birds (insectivorous)	Bi_Incub	y	++		more = disturbance			
-Birds (insectivorous)	Bi_TOffsprings	y	--	I	Small = fast			
-Birds (insectivorous)	Bi_GenLength	y	--					
-Birds (insectivorous)	Bi_AgeMax	y	--	I	Small = fast			
-Butterflies	but_flight	y	++		Early emergence favorable bc disturbance starts early 	Börschig et al. 2013		
-Butterflies	but_GenYear	y	++		High reproduction can compensate mortality due to disturbance	Börschig et al. 2013		
-Butterflies	but_hibernation	y	++		Later hibernation stage means butterflies ready before disturbance			
-Butterflies	but_Size	y	++		Larger wings = more dispersal	Börschig et al. 2013		
-Butterflies	but_Generalism	y	++				High nutrients = low plant diversity, hence more generalists	
-Collembola	col_Sex	y	--					
-Collembola	col_Gen_per_Year	y	++		Furca = escape disturbance			
-Collembola	col_Depth	y	++					
-Collembola	col_Size	y	--		a/ more resources or b/ selected			
-Mites	mites_DaysAdult	y	--		longer lifespan = slow			
-Mites	mites_Mass	y	--		Mass = size = slow			
-Mites	mites_Sex	y	--	I	Habitat openness = sexual repro, more LUI = more growth			
-Mites	mites_Hab_spec	y	++		more disturbance = more in the soil			
-Mites	mites_Feed_spec	y	++					
-Protists	P_patho	y	++		More bacteria = more bacterivores			
-Protists bacterivores	Pb_Size	y	--		a/ More nutrients = more resources to grow. b/ Disturbance selects smaller size			
-Protists predators	Ps_Size	y	--		a/ More nutrients = more resources to grow. b/ Disturbance selects smaller size			
-Microbes	mic_FB	y	--	D and I	Fungi slower than bacteria, linked to slow plant traits		"Fungi dominate in low-nutrient soils; associated with slow plants"	de Vries et al. 2006, de Vries et al. 2012, Boeddinghaus et al. 2019
-Microbes	mic_Fpathotroph	y	++		Fast= more parasites	check https://www.nature.com/articles/s41467-021-23605-y	Fast plant invest less in defenses, so more pathogens	
-Microbes	mic_O.C.ratio	y	--				- more oligo (Acido) than copio (Actibo, alphapto…) in slow	Check Neff 2015, Ramirez 2010, Fierer 2012
-Microbes	mic_Bvolume	y	+/-	D	a/ small cells more efficient for diffusive uptake (-) OR b/ for a given substrate demand, large radius compensates low substrate concentrations	Westoby et al. 2021		
-Microbes	mic_Bgenome_size	y	--	D			- Larger genomes should be more successful in resource-poor environments v. S strategies have smaller genomes (Westoby et al.)	"Leff et al. 2015; Konstantinidis  (2004)"
-Bats	bat_mass	y	--		Large more sensitive to disturbance BUT large less sensitive to urbanisation??	Farneda et al. 2015, Moir et al. 2021 , Jung et al 2018		
-Bats	bat_lifespan	y						
-Bats	bat_offspring	y	++		opposite to size			
+plants	plants_SLA_all	y	++	D	#NAME?		+ more nutrients allow for 'cheap' leaves	
+plants	plants_Seed_mass	y	--	D	- disturbance selects for smaller seeds (= colonisation) 	Diaz et al. 2016		
+plants	plants_LDMC	y	--	D	Tougher = slow			
+plants	plants_LeafN	y	++	D			+ more nutrients allow for 'cheap' leaves	Diaz et al. 2016
+plants	plants_LeafP	y	++	D			+ more nutrients allow for 'cheap' leaves	
+plants	plants_Root_tissue_density	y	--	D			+  conservative and/or 'collaboration' => if few nutrients,  need for collaboration	Bergmann et al. 2020
+arthropods_above_carni	arthropods_above_carni_logBody_Size	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
+arthropods_above_carni	arthropods_above_carni_Dispersal_ability	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
+arthropods_above_herb	arthropods_above_herb_logBody_Size	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
+arthropods_above_herb	arthropods_above_herb_Dispersal_ability	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
+arthropods_above_herb	arthropods_above_herb_Feeding_generalism	y	++					
+arthropods_above_herb	arthropods_above_herb_Generations	y	++	I				
+arthropods_below_omni_carni	arthropods_below_omni_carni_logBody_Size	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
+arthropods_below_omni_carni	arthropods_below_omni_carni_Dispersal_ability	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
+arthropods_below_herb	arthropods_below_herb_logBody_Size	y	--	D	Smaller species evade disturbance more easily	Birkhofer et al. 2015, 2017, see also Blake 1994, Neff et al. 2019, Simons et al. 2016		
+arthropods_below_herb	arthropods_below_herb_Dispersal_ability	y	++	D	Disturbance selects for good dispersers to recolonize the plot after disturbance, Hanson et al. 2016	Birkhofer et al. 2013, 2015, 2017 , Simons et al. 2016		
+arthropods_below_herb	arthropods_below_herb_Feeding_generalism	y	++					
+birds	birds_logBody_Mass	y	--					
+birds	birds_logIncub_time	y	--		more = disturbance			
+birds	birds_logBrood	y	++	I	Small = fast			
+birds	birds_GenLength	y	--					
+butterflies	butterflies_logFlight	y	++		Early emergence favorable bc disturbance starts early 	Börschig et al. 2013		
+butterflies	butterflies_Voltinism_use	y	++		High reproduction can compensate mortality due to disturbance	Börschig et al. 2013		
+butterflies	butterflies_Wintering_stage	y	++		Later hibernation stage means butterflies ready before disturbance			
+butterflies	butterflies_logSize	y	--		Larger wings = more dispersal	Börschig et al. 2013		
+butterflies	butterflies_Generalism_use	y	++				High nutrients = low plant diversity, hence more generalists	
+coll	coll_Repro_sex	y	--					
+coll	coll_Gen_per_year	y	++		Furca = escape disturbance			
+coll	coll_Depth_preference	y	++					
+coll	coll_logSize	y	--		a/ more resources or b/ selected			
+mites	mites_DaystoAdult	y	--		longer lifespan = slow			
+mites	mites_logMass	y	--		Mass = size = slow			
+mites	mites_Repro_sex	y	--	I	Habitat openness = sexual repro, more LUI = more growth			
+mites	mites_Habitat_spec	y	++		more disturbance = more in the soil			
+mites	mites_Feeding_spec	y	++					
+protists	protists_nutrition_code_primary_cons	y	++		More bacteria = more bacterivores			
+protists_bact	protists_bact_Size	y	--		a/ More nutrients = more resources to grow. b/ Disturbance selects smaller size			
+protists_sec_cons	protists_sec_cons_Size	y	--		a/ More nutrients = more resources to grow. b/ Disturbance selects smaller size			
+bact_fungi	bact_fungi_FB_ratio	y	--	D and I	Fungi slower than bacteria, linked to slow plant traits		"Fungi dominate in low-nutrient soils; associated with slow plants"	de Vries et al. 2006, de Vries et al. 2012, Boeddinghaus et al. 2019
+bact_fungi	bact_fungi_pathogens	y	++		Fast= more parasites	check https://www.nature.com/articles/s41467-021-23605-y	Fast plant invest less in defenses, so more pathogens	
+bact_fungi	bact_fungi_OC_ratio	y	--				- more oligo (Acido) than copio (Actibo, alphapto…) in slow	Check Neff 2015, Ramirez 2010, Fierer 2012
+bact_fungi	bact_fungi_logVolume	y	--	D	a/ small cells more efficient for diffusive uptake (-) OR b/ for a given substrate demand, large radius compensates low substrate concentrations	Westoby et al. 2021		
+bact_fungi	bact_fungi_Genome_size	y	--	D			#NAME?	"Leff et al. 2015; Konstantinidis  (2004)"
+bats	bats_logBody_mass	y	--		Large more sensitive to disturbance BUT large less sensitive to urbanisation??	Farneda et al. 2015, Moir et al. 2021 , Jung et al 2018		
+bats	bats_Lifespan	y	--					
+bats	bats_Number_offspring	y	++		opposite to size			
