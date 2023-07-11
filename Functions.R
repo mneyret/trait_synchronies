@@ -1,3 +1,5 @@
+
+# CWM calculation
 my_cwm <- function(Traits0, Abundances0, trait_names, trait_taxo, abundance_taxo) {
   # Traits must be a LARGE data table with one column called 'taxo' (= species or whatever) and other colnames including trait_names
   # Abundance must be a LONG data table with one column called 'taxo' (= species or whatever), one "value" (= abundance), one "Plot" and one "Year"
@@ -36,47 +38,10 @@ my_cwm <- function(Traits0, Abundances0, trait_names, trait_taxo, abundance_taxo
   cwm$Year = as.numeric(sapply(rownames(cwm), function(x){unlist(strsplit(x, '_'))[[2]]}))
   
   return(data.table(cwm))
-  
-#  Traits2 <- Traits[, .SD, .SDcols = c("taxo", trait_names)]
- # Abundances2 <- Abundances[, .SD, .SDcols = c("Year", "taxo", "value", "Plot")]
-  
-  #traits_ab <- merge.data.table(Traits2, Abundances2, by = "taxo", all = TRUE)
-  
-  #traits_ab = traits_ab[value > 0, ]
-  #traits_ab$ID = 1:nrow(traits_ab)
-  #traits_ab[, value2 := ifelse(is.na(taxo), 0, value)]
-  #traits_ab_cover = traits_ab
-  
-  #MAX = traits_ab_cover[, list(MAX =  sum(value2, na.rm = T)/sum(value, na.rm = T)), by = c('Plot',"Year")]
-  
-  #trait_type = unlist(traits_ab_cover[, lapply(.SD, is.numeric), .SDcols = trait_names])
-  #trait_quanti = names(trait_type[trait_type])
-  #print(trait_quanti)
-  #print("_______")
-  #trait_quali = names(trait_type[!trait_type])
-  #print(trait_type)
-  #print(trait_quali)
-  #old_col = copy(colnames(traits_ab))
-  
-  # For qualitative traits: create dummy variables
-  
- # if (length(trait_quali)>0){
-#  traits_ab_cover[, (trait_quali) := lapply(.SD, function(x){ifelse(x == 'NA', NA, x)}), .SDcols = trait_quali]
-#  dummy_columns(traits_ab_cover, select_columns = trait_quali, ignore_na = TRUE)
-#  dummycols = colnames(traits_ab_cover)[!(colnames(traits_ab_cover) %in% old_col) ]
-#  traits = c(trait_quanti, dummycols)}
-#  if (length(trait_quali)==0){traits = trait_quanti}
-#  #print(traits)
-#  cwm <- traits_ab_cover[,
-#                   lapply(.SD, function(x) {
-#                     sum(x[!is.na(x)] * value2[!is.na(x)], na.rm = T) / sum(value2[!is.na(x)], na.rm = T)
-#                   }),
-#                   by = c("Plot", "Year"),
-#                   .SDcols = traits
-#  ][order(Plot), ]
-  
-  
 }
+
+
+# Function to check how much % of the individuals (or cover) has trait data available
 
 check_coverage <- function(Traits0, Abundances0, trait_names, trait_taxo, abundance_taxo) {
   # Traits must be a LARGE data table with one column called 'taxo' (= species or whatever) and other colnames including trait_names
@@ -119,7 +84,6 @@ check_coverage <- function(Traits0, Abundances0, trait_names, trait_taxo, abunda
     traits_ab_cover[, .SD, .SDcols = c("taxo", "Plot", "Year", "value", 'value2')]
   )
   
-  
 
   final <- traits_ab_cover2[, lapply(.SD, function(x) {
     sum(x * value2, na.rm = T)/sum(value, na.rm = T)
@@ -128,6 +92,8 @@ check_coverage <- function(Traits0, Abundances0, trait_names, trait_taxo, abunda
   return(final)
 }
 
+
+# Function to match trait data with metadata
 add_info = function(data, traitRefs, traitDataIDs, traitDescriptions, traitUnits, AbundanceID, traitsOnly = FALSE){
   data[, traitUnit := dplyr::recode(traitName, !!!traitUnits)]
   data[, traitDescription := dplyr::recode(traitName, !!!traitDescriptions)]
@@ -138,6 +104,7 @@ add_info = function(data, traitRefs, traitDataIDs, traitDescriptions, traitUnits
   return(data)
 }
 
+# Function to get gbif taxonomy (wrapper around get_gif_taxonomy function)
 get_gbif = function(x){
   if(is.na(x)){
     return(NA)
@@ -158,6 +125,7 @@ get_gbif = function(x){
       }}}
 }
 
+# Function to calculate the coefficients of the SEM linking each trait to the fertilisation, mowing and grazing components of Land-use intensity
 calculate_coeff = function(DATA){
   mod = 'value ~ Fertil 
          value ~ Mowing
@@ -188,6 +156,280 @@ calculate_coeff = function(DATA){
 }
 
 
+## Function to correct CWM and function data for region and/or environmental covariates
+corrections <- function(CWM_data, Env_data = NULL, env_corr = FALSE,  variables = NULL, env_variables = NULL) {
+  CWM_data_copy <- CWM_data[complete.cases(CWM_data),]
+  if (env_corr == TRUE & is.null(Env_data)) {
+    stop("Please provide environmental data")
+  }
+  if (is.null(variables)) {
+    variables <- colnames(CWM_data_copy)[!(colnames(CWM_data_copy) %in% c("Plot", "Year"))]
+  }
+  
+  if (is.null(env_variables)) {
+    env_variables <- colnames(Env_data)[!(colnames(Env_data) %in% c("Plot", "Year"))]
+  }
+  
+  if (env_corr == TRUE) {
+    CWM_data_copy <- merge(CWM_data_copy, Env_data[, .SD, .SDcols = c("Plot", env_variables)], by = "Plot")
+    
+    CWM_data_copy[, (variables) := lapply(.SD, function(x) {
+      mod <- lm(x ~ ., CWM_data_copy[, .SD, .SDcols = env_variables])
+      return(residuals(mod))
+    }),
+    .SDcols = variables
+    ]
+    CWM_data_copy = CWM_data_copy[, .SD, .SDcols = c(variables, 'Plot')]
+  }
+  return(CWM_data_copy)
+}
 
-#### Functions ####
+## Function to correct CWM and function data for region and/or environmental covariates, long format
+corrections_long <- function(value, env_data, env_corr = FALSE) {
+  if (env_corr == TRUE) {
+    mod <- lm(value ~ ., env_data)
+    return(residuals(mod))
+  } else {
+    return(value)
+  }
+}
+
+## Function to calculate individual responses to fertilisation, mowing and grazing
+calculate_coeff_new = function(DATA){
+  mod = 'value ~ Fertil 
+         value ~ Mowing
+         value ~ Grazing
+         Mowing ~~ Fertil 
+         Grazing ~~ Fertil 
+         Grazing ~~ Mowing
+'
+  sem_components = sem(mod, data = DATA)
+  res = as.list(partable(sem_components)$est[1:3])
+  names(res) = partable(sem_components)$rhs[1:3]
+  
+  lui_mod = lm(value ~ LUI, data = DATA)
+  parameters = model_parameters(lui_mod)
+  res$estimate = parameters$Coefficient[2]
+  res$p = parameters$p[2]
+  res$ci_low =  round(parameters$CI_low[2], 2)
+  res$ci_high = round(parameters$CI_high[2], 2)
+  res$ci =  paste(res$ci_low,res$ci_high, sep = ' - ')
+  res$n =  nobs(lui_mod)
+  return(res)
+}
+
+## Function to run PCA, renaming rows as needed
+my_dudi_pca <- function(CWM_matrix, col_to_use, NF = 3) {
+  matrix <- data.frame(CWM_matrix[complete.cases(CWM_matrix[, ..col_to_use])])
+  rownames(matrix) <- matrix$Plot
+  pca <- dudi.pca(matrix[, col_to_use], scannf = FALSE, nf = NF)
+  return(pca)
+}
+
+## Function to scale between 0 and 1 (used for colors mostly)
+scale01 = function(x){
+  return((x-min(x))/(max(x)-min(x)))
+}
+
+## Function to change the direction of PCA axis (for reproductibility of axes direction)
+axes_direction_pca <- function(pca, cwm, traitnames, conditions) {
+  if (length(conditions) != length(traitnames)) {
+    print("Number of axes, traits, and conditions should be equal")
+  }
+  else {
+    cond_positive <- ifelse(gsub(" ", "", conditions) == ">0", TRUE, FALSE)
+    I <- length(traitnames)
+    for (i in 1:I) {
+      if ((pca$li[cwm[get(traitnames[i]) == max(get(traitnames[i])), Plot], i] > 0) != cond_positive[i]) {
+        pca$li[, i] <- -pca$li[, i]
+        pca$co[, i] <- -pca$co[, i]
+      }}}
+  return(pca)
+}
+
+## Function to print the large table with individual trait responses
+print_table = function(Hypo_table){
+  Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", 'Est','CI','Padj', 'Fit_exp')]
+  H_kable <- kable_paper(kbl(Table_use, escape = FALSE))
+  H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est"),
+                         background = rgb(pal.fnc(scale01(Hypo_table$Est)), maxColorValue=255),
+                         color = 'white',
+                         bold  = Hypo_table$Signif == "YES",
+                         italic  = !Hypo_table$Signif == "no"
+  )
+  H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fit_exp"),
+                         background = ifelse(is.na(Hypo_table$Fit_exp) | Hypo_table$Fit_exp == 'Inconclusive', 'grey', 'white')
+  )
+  
+  H_kable = gsub( '+', '&#43;', H_kable, fixed = T)
+  H_kable = gsub( '@@@', '&#', H_kable)
+  H_kable
+}
+
+# Function to auto run PCAs
+run_group_pca = function(cwm, traits, trait_direction, direction = '>0', plot = TRUE, env_corr, Labels = NA, annot = NA, naxes = 2){
+  
+  data = data.frame(cwm[, .SD, .SDcols = c('LUI', 'Disturbance', 'Fertilisation', traits)])
+  rownames(data) = cwm$Plot
+  data = data[complete.cases(data),]
+  pca_stand = PCA(data, graph=FALSE, quanti.sup = 1:3)
+  
+  # Store the direction of the expected fast_slow axis (1 is left to right, -1 is right to left)
+  direction_axis = numeric()
+  pca_to_plot = pca_stand
+  
+  for (i in 1:length(direction)){
+    if (pca_stand$var$coord[trait_direction[i], i] > 0 & direction[i]  == '>0' |
+        pca_stand$var$coord[trait_direction[i], i] < 0 & direction[i]  == '<0'){
+      direction_axis = c(direction_axis, 1)
+    } else {
+      direction_axis = c(direction_axis,-1)
+    }
+    pca_to_plot$var$coord[,i] = pca_to_plot$var$coord[,i]*direction_axis[i]
+    pca_to_plot$ind$coord[,i] = pca_to_plot$ind$coord[,i]*direction_axis[i]
+    pca_to_plot$quanti.sup$coord[,i] = pca_to_plot$quanti.sup$coord[,i]*direction_axis[i]
+  }
+  
+  naxes = length(traits)
+  
+  corr_unsignificant = 0
+  for (trait in traits){
+    cor = cor.test(unlist(data[, trait]), pca_stand$ind$coord[,1])
+    if (cor$p.value > 0.05){
+      corr_unsignificant = corr_unsignificant+1
+    }
+  }
+  
+  keep_criteria = data.table('More_than_random' = pca_stand$eig[1] / (1/length(traits)),
+                             'Prop.traits.40' =   length(pca_stand$var$cor[,1][abs(pca_stand$var$cor[,1])>0.4])/length(pca_stand$var$cor[,1]),
+                             'Prop.traits.25' =   length(pca_stand$var$cor[,1][abs(pca_stand$var$cor[,1])>0.25])/length(pca_stand$var$cor[,1]),
+                             'Cor_unsignificant' =  corr_unsignificant)
+  keep_criteria[, enough_support := More_than_random >2 & Prop.traits.40 >= 0.60]
+  keep_criteria[, partial := More_than_random >2 & Prop.traits.25 >= 0.60 & Cor_unsignificant <= 1]
+  keep_criteria[, LUI.Axis1 := round(cor.test(data$LUI, pca_stand$ind$coord[,1])$p.value, 3)]
+  keep_criteria[, LUI.Axis2 := round(cor.test(data$LUI, pca_stand$ind$coord[,1])$p.value, 3)]
+  names(Labels)  = traits
+  
+  if (is.na(annot)){
+    Criteria_label = ifelse(keep_criteria$enough_support, 'Criteria met', 'Criteria not met!')
+    if (keep_criteria$partial == TRUE & keep_criteria$enough_support != TRUE){
+      Criteria_label = paste('Criteria partially met', sep = ' ')
+    }
+    
+    Criteria_label = paste(Criteria_label, '\n Axis1 x LUI: p =', keep_criteria$LUI.Axis1,
+                           '\n Axis2 x LUI: p =', keep_criteria$LUI.Axis2, sep = '')
+  }else{
+    Criteria_label =  annot
+  }
+  
+  rownames(pca_to_plot$var$coord) = rownames(pca_to_plot$var$cor) = rownames(pca_to_plot$var$cos2) = Labels
+  
+  if (env_corr == TRUE){
+    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'darkred', col.var = 'grey30', 
+                           labelsize = 3, repel = T)
+  }
+  if (env_corr == FALSE){
+    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'darkred', col.var = 'grey30', habillage = factor(substr(rownames(pca_to_plot$ind$coord), 1, 1)), 
+                           labelsize = 3, repel = T) +
+      scale_shape_discrete( breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')+
+      scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')
+    
+  }
+  res = list(PCA = pca_stand, plot12 = plot_pca_12, criteria = keep_criteria, direction = direction_axis)
+  return(res)
+}
+
+# Function to format thetable testing all the hypotheses
+return_hypo_result_color = function(Signif, Direction){
+  res = NA
+  if (Signif == 'no'){
+    res = 'Inconclusive' } 
+  if (Signif == 'yes'){
+    if (Direction %in% c('a', 'b')) {res = Direction}
+    if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@10004;", "X")}  }
+  if (Signif == 'YES'){
+    if (Direction %in% c('a', 'b')) {res = toupper(Direction)}
+    if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@9989;", "@@@10060;")} }
+  
+  return(res)}
+
+## Function to convert a SEM into a text variable to facilitate SEM handling
+autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = T, Data = dd){
+  # This function takes a model formula without parameters
+  # and creates all the parameter names for direct, indirect and total effects
+  model_init <- sem(model_raw,
+                    data = Data)
+  coefficients = data.table(parameterEstimates(model_init, standardized = T))
+  coefficients = coefficients[lhs != rhs,]
+  coefficients = coefficients[op == '~',]
+  
+  coefficients_lm = coefficients[op == '~',]
+  exo_var = unique(coefficients_lm$rhs[!(coefficients_lm$rhs %in% coefficients_lm$lhs)])
+  
+  effect_list = list()
+  model_lines = list()
+  
+  for (group in unique(coefficients$lhs)){
+    # Write down main model line
+    RHS = coefficients[lhs == group, ]
+    right_hand = paste(paste(RHS$rhs, RHS$lhs, sep = '__'), '*', RHS$rhs, collapse = ' + ', sep = '')
+    lm_line = paste(group, '~', right_hand)
+    model_lines = append(model_lines, lm_line)
+    
+    for (exo in exo_var){
+      # Direct effect
+      direct = paste('Direct__', exo, '__', group, '__', trophic_levels[group], sep = '')
+      
+      direct_rhs = paste(' := ', exo, '__', group, sep = '')
+      direct_line = paste(direct, direct_rhs , sep = '')
+      model_lines = append(model_lines, direct_line)
+      effect_list = append(effect_list, direct)
+      
+      # Indirect effect
+      RHS_indirect = RHS[!(rhs %in% exo_var),]
+      if (nrow(RHS_indirect) > 0){
+        indirect = paste('Indirect__', exo, '__', group, '__', trophic_levels[group], sep = '')
+        indirect_rhs = paste( 
+          paste('Total__', exo, '__', RHS_indirect[, rhs], '__', trophic_levels[RHS_indirect[, rhs]], sep = ''), 
+          '*',
+          paste(RHS_indirect[, rhs], '__', group, sep = ''), sep = '', collapse = ' + ')
+        indirect_line = paste( indirect , indirect_rhs, sep = ' := ')
+        model_lines = append(model_lines, indirect_line)
+        effect_list = append(effect_list, indirect)
+        
+        # Total effect
+        total = paste('Total__', exo, '__', group, '__', trophic_levels[group], sep = '')
+        
+        total_rhs = paste(direct, indirect, sep = ' + ')
+        total_line = paste(total, total_rhs, sep = ' := ')
+        
+        model_lines = append(model_lines, total_line)
+        effect_list = append(effect_list, total)
+      }
+      else {
+        total = paste('Total__', exo, '__', group, '__', trophic_levels[group], sep = '')
+        total_line = paste(total, direct, sep = ' := ')
+        model_lines = append(model_lines, total_line)
+        effect_list = append(effect_list, total)
+      }} }
+  
+  effect_list = unlist(effect_list)
+  overall_effects = list()
+  for (trophic_lvl in unique(trophic_levels[coefficients$lhs])){
+    for (type in c('Direct', 'Indirect', 'Total')){
+      #  print(type)
+      if (!(type == 'Indirect' & trophic_lvl == 0)){
+        for (exo in exo_var){
+          effect = paste(type, exo, trophic_lvl, sep = '__')
+          relevant_effects = effect_list[grepl(type, effect_list) & grepl(trophic_lvl, effect_list) & grepl(exo, effect_list)]
+          rhs = paste('(', 
+                      paste(relevant_effects, collapse = ' + '),
+                      ')/', length(relevant_effects))
+          overall_effects = append(overall_effects, paste(effect, rhs, sep = ':='))
+        }
+      }}
+  }
+  whole_model = paste(c(unlist(model_lines), unlist(overall_effects)), collapse = ' \n ')
+  return(whole_model)
+}
 

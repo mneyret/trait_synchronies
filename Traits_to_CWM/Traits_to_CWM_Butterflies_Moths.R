@@ -1,6 +1,9 @@
 # This script takes as input the abundances and species-level traits of moth and butterflies species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
+
+#!!! Gbif version: Pre-Nov 2022 (taxonomy matching has been affected by the following update)
+
 # ******************* #
 #### 1. Load data ####
 # ****************** #
@@ -35,12 +38,6 @@ butterflies_EUMaghreb[, scientific_name_gbif := get_gbif_taxonomy(`Taxa name`)$s
 butterflies_EUMaghreb_traits[, scientific_name_gbif := get_gbif_taxonomy(Taxon)$scientificName, by = Taxon][is.na(scientific_name_gbif) , scientific_name_gbif:= Taxon]
 butterflies_Boerschig[, scientific_name_gbif := get_gbif_taxonomy(Species)$scientificName, by = Species][is.na(scientific_name_gbif) , scientific_name_gbif:= Species]
 
-# For the butterflies_EUMaghreb database, some different synonyms for different regions are matched to the same
-# gbif name. In these cases, we keep only the record that initially had the same name
-#double_species = butterflies_EUMaghreb[, length(unique(`Taxa name`)), by = scientific_name_gbif][V1>1, scientific_name_gbif]
-
-#butterflies_EUMaghreb = butterflies_EUMaghreb[!(scientific_name_gbif %in% double_species & scientific_name_gbif != `Taxa name`)]
-#butterflies_EUMaghreb_traits = butterflies_EUMaghreb_traits[!(scientific_name_gbif %in% double_species & scientific_name_gbif != `Taxon`)]
 # ************************************** #
 #### 2. Merge traits across databases ####
 # ************************************** #
@@ -316,7 +313,7 @@ Melted_traits = melt.data.table(Merged_traits, id.vars = 'BE_species', variable.
 # Add info
 
 #logFlight      Wintering_stage Generalism_use  Voltinism_use  
-traitUnits = c("month (log-transformed)","unitless","unitless","unitless",'mm')
+traitUnits = c("month (log-transformed)","unitless","unitless","unitless",'mm (log-transformed)')
 traitDescription = c("Length of the adult flying period",
                      "Wintering stage coded as egg = 0, larva = 1, pupa = 2, adult = 3",
                      "Feeding generalism coded as monophagous (feeding on 1 species) = 1, oligophagous (feeding on one genus) = 2, oligophagous (feeding on one family) = 3, polyphagous (more than one family) = 4)",
@@ -335,7 +332,7 @@ names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnit
 
 Melted_traits_all = add_info(Melted_traits[traitName %in% c('logFlight', 'Wintering_stage', 'logSize', 'Generalism_use', 'Voltinism_use', 'Eggs.log')], traitRefs = traitRef, traitDataIDs = traitDataID, traitDescriptions = traitDescription, traitUnits = traitUnits, traitsOnly = TRUE)
 
-fwrite(Merged_traits, "Data/Temporary_data/Lepidoptera_traits_use.csv")
+fwrite(Melted_traits_all, "Data/Temporary_data/Lepidoptera_traits_with_info.csv")
 #fwrite(Abundances_lepi, "Data/Temporary_data/Lepidoptera_abundance_gbif.csv")
 
 

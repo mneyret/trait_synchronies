@@ -260,11 +260,16 @@ CWM_Protists_sec_cons_noweight <- my_cwm(unique(Cercozoa_traits[nutrition_code =
                                 Cercozoa_abundance_format_presence_absence,
                                 trait_names, 'Genus', 'Genus')
 
+CWM_Protists_noweight$Year = as.character(CWM_Protists_noweight$Year)
+CWM_Protists_bact_noweight$Year = as.character(CWM_Protists_bact_noweight$Year)
+CWM_Protists_sec_cons_noweight$Year = as.character(CWM_Protists_sec_cons_noweight$Year)
 
+CWM_Protists_noweight$Year = CWM_Protists_bact_noweight$Year = CWM_Protists_sec_cons_noweight$Year = 'NA'
 
 ### Melt and merge
 # We need a few more steps because some of the traits are qualitative
 CWM_CC_protists_noweight = melt.data.table(CWM_Protists_noweight[, list(Plot, Year, Size, nutrition_code_bacterial_cons, traitCoverage = 1-nutrition_code_NA, nutrition_code_primary_cons, nutrition_code_secondary_cons)], id.vars = c('Plot', 'Year', 'traitCoverage'), variable.name = "traitName", value.name = 'traitValue')
+
 
 CWM_CC_Protists_bact_noweight = merge.data.table(melt.data.table(CWM_Protists_bact_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
                                         melt.data.table(CC_Protists_bact_noweight[, list(Year, Plot, Size)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
@@ -282,22 +287,6 @@ CWM_CC_protists_sec_cons_noweight = add_info(CWM_CC_Protists_sec_cons_noweight, 
 fwrite(CWM_CC_protists_noweight, "Data/CWM_data/CWM_protists_noweight.csv")
 fwrite(CWM_CC_protists_bact_noweight, "Data/CWM_data/CWM_protists_bact_noweight.csv")
 fwrite(CWM_CC_protists_sec_cons_noweight, "Data/CWM_data/CWM_protists_sec_cons_noweight.csv")
-
-#write.csv(CWM_Protists_noweight[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
-#                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
-#                              "P_Size" = Size,
-#                              "Plot" = Plot,
-#                              "Year" = Year)], paste(cwm_path, "CWM_Protists_noweight.csv",sep = ''))
-#write.csv(CWM_Protists_bact_noweight[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
-#                                   "Pb_Size" = Size,
-#                                   "Plot" = Plot,
-#                                   "Year" = Year)], paste(cwm_path, "CWM_Protists_bact_noweight.csv",sep = ''))
-#
-#write.csv(CWM_Protists_sec_cons_noweight[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
-#                                       "Ps_Size" = Size,
-#                                       "Plot" = Plot,
-#                                       "Year" = Year)], paste(cwm_path, "CWM_Protists_sec_cons_noweight.csv",sep = ''))
-
 
 # ****************** #
 #### 5. Turnover ####

@@ -1,3 +1,6 @@
+# From: https://github.com/eric-allan/multidiversity/blob/master/README.md
+
+
 #### a function to calculate multifunctionality
 #### threshold can be a proportion of the maximum e.g. 0.5 or can be the median or mean
 #### it can also be a vector of the same length as the number of diversities to

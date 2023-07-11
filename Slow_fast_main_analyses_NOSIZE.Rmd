@@ -1,14 +1,13 @@
 ---
-title: "Trait synergies"
+title: "Slow-fast continuum without size data"
 output:
   html_document:
     df_print: paged
   pdf_document: default
 ---
 
-Exploration of the trait analysis for trait synchrony.
 
-```{r echo = F}
+```{r Set-up options, echo = F}
 options(error = function(){    # Beep on error
   beepr::beep()
   Sys.sleep(1)
@@ -20,26 +19,25 @@ options(error = function(){    # Beep on error
   Sys.sleep(1)
 }
 knitr::opts_knit$set(root.dir = "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code")
-
 ```
 
-```{r Setup, echo = FALSE, include = FALSE}
-
-#remotes::install_github("allanecology/BetaDivMultifun")
-
+```{r Setup Libraries and parameters, echo = FALSE, include = FALSE}
+# Libraries
 library(forcats)
 library(ade4)
+library(scales)
 library(factoextra)
 library(ggfortify)
 library(ggcorrplot)
 library(lavaan)
+library(fishmethods)
 library(semPlot)
 library(ghibli)
 library(mice)
+library(viridisLite)
 library(miceFast)
 library(ggnetwork)
 library(viridis)
-library(tidyverse)
 library(tidygraph)
 library(ggraph)
 library(lavaan)
@@ -48,29 +46,42 @@ library(semTable)
 library(FactoMineR)
 library(data.table)
 library(readxl)
+#https://teunbrand.github.io/ggh4x/articles/Facets.html
+library(ggh4x)
 library(kableExtra)
 library(phyloseq)
-library(BetaDivMultifun)
 library(parameters)
 library(beepr)
-
-# Set working directory
-#setwd("/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code")
+library(vegan)
+# Options and seeds
 env_corr <- TRUE 
 weight = TRUE
 
 seed = 101
 
+# Colors
 pal.fnc = colorRamp(c('#4575b4','#91bfdb','#e0f3f8','#fee090','#fc8d59',
                       '#d73027'))
+```
 
-# Function to correct for region and/or environment
+This script loads CWM, environmental covariates and ecosystem functions data to
+  - test the relationship of individual traits with land-use intensity (LUI)
+  - run PCAs to identify guild- and whole community-level slow-fast axes
+  - run SEMs to test whether the slow-fast axes of individual guilds are due to direct LUI effects or indirect, cascading effects
+  - test the relaiton between trait slow-fast and ecosystem functions slow-fast axes.
+  
+
+Parameters: environmental correction is `r env_corr`; weighting for abundances is  `r weight`.
+
+
+```{r Defining functions, echo = FALSE, include = FALSE}
+## Function to correct CWM and function data for region and/or environmental covariates
+
 corrections <- function(CWM_data, Env_data = NULL, env_corr = FALSE,  variables = NULL, env_variables = NULL) {
   CWM_data_copy <- CWM_data[complete.cases(CWM_data),]
   if (env_corr == TRUE & is.null(Env_data)) {
     stop("Please provide environmental data")
   }
-  
   if (is.null(variables)) {
     variables <- colnames(CWM_data_copy)[!(colnames(CWM_data_copy) %in% c("Plot", "Year"))]
   }
@@ -78,7 +89,6 @@ corrections <- function(CWM_data, Env_data = NULL, env_corr = FALSE,  variables 
   if (is.null(env_variables)) {
     env_variables <- colnames(Env_data)[!(colnames(Env_data) %in% c("Plot", "Year"))]
   }
-  
   
   if (env_corr == TRUE) {
     CWM_data_copy <- merge(CWM_data_copy, Env_data[, .SD, .SDcols = c("Plot", env_variables)], by = "Plot")
@@ -94,6 +104,7 @@ corrections <- function(CWM_data, Env_data = NULL, env_corr = FALSE,  variables 
   return(CWM_data_copy)
 }
 
+## Function to correct CWM and function data for region and/or environmental covariates, long format
 corrections_long <- function(value, env_data, env_corr = FALSE) {
   if (env_corr == TRUE) {
     mod <- lm(value ~ ., env_data)
@@ -103,11 +114,11 @@ corrections_long <- function(value, env_data, env_corr = FALSE) {
   }
 }
 
+## Function to calculate individual responses to fertilisation, mowing and grazing
 calculate_coeff_new = function(DATA){
   mod = 'value ~ Fertil 
          value ~ Mowing
          value ~ Grazing
-      
       Mowing ~~ Fertil 
       Grazing ~~ Fertil 
       Grazing ~~ Mowing
@@ -120,31 +131,27 @@ calculate_coeff_new = function(DATA){
   parameters = model_parameters(lui_mod)
   res$estimate = parameters$Coefficient[2]
   res$p = parameters$p[2]
-  res$ci_low =  parameters$CI_low[2]
-  res$ci_high = parameters$CI_high[2]
+  res$ci_low =  round(parameters$CI_low[2], 2)
+  res$ci_high = round(parameters$CI_high[2], 2)
   res$ci =  paste(res$ci_low,res$ci_high, sep = ' - ')
   res$n =  nobs(lui_mod)
-
-  #lui_mod_uncorr = lm(value_uncorr ~ LUI, data = DATA)
-  #coeff = coefficients(summary(lui_mod_uncorr))[2,]
-  #res$estimate_uncorr = coeff['Estimate']
-  #res$p_uncorr = coeff['Pr(>|t|)']
-  #res$ci_uncorr = paste(round(confint(lui_mod_uncorr)[2,], 2), collapse = ' - ')
-  
   return(res)
 }
 
+## Function to run PCA, renaming rows as needed
 my_dudi_pca <- function(CWM_matrix, col_to_use, NF = 3) {
   matrix <- data.frame(CWM_matrix[complete.cases(CWM_matrix[, ..col_to_use])])
   rownames(matrix) <- matrix$Plot
   pca <- dudi.pca(matrix[, col_to_use], scannf = FALSE, nf = NF)
   return(pca)
 }
+
+## Function to scale between 0 and 1 (used for colors mostly)
 scale01 = function(x){
   return((x-min(x))/(max(x)-min(x)))
 }
 
-# Function to change the direction of PCA axis (for reproductibility of axes direction)
+## Function to change the direction of PCA axis (for reproductibility of axes direction)
 axes_direction_pca <- function(pca, cwm, traitnames, conditions) {
   if (length(conditions) != length(traitnames)) {
     print("Number of axes, traits, and conditions should be equal")
@@ -154,355 +161,32 @@ axes_direction_pca <- function(pca, cwm, traitnames, conditions) {
     I <- length(traitnames)
     for (i in 1:I) {
       if ((pca$li[cwm[get(traitnames[i]) == max(get(traitnames[i])), Plot], i] > 0) != cond_positive[i]) {
-        #   print(paste("Changed direction of axis", i))
         pca$li[, i] <- -pca$li[, i]
         pca$co[, i] <- -pca$co[, i]
-      }
-    }
-  }
+      }}}
   return(pca)
 }
 
-
-
+## Function to print the large table with individual trait responses
 print_table = function(Hypo_table){
-  #Hypo_table[, Group := droplevels(Group)]
-  Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", "Direct/indirect", "Disturbance",	"ref_dist",	"Resources",	"ref_res", 'Est','CI','Padj', 'Fit_exp','Mowing', 'Grazing', 'Fertil'
-                                           
-  )]
+  Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", 'Est','CI','Padj', 'Fit_exp')]
   H_kable <- kable_paper(kbl(Table_use, escape = FALSE))
-  
   H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est"),
                          background = rgb(pal.fnc(scale01(Hypo_table$Est)), maxColorValue=255),
                          color = 'white',
                          bold  = Hypo_table$Signif == "YES",
                          italic  = !Hypo_table$Signif == "no"
   )
-  
-  
-  max.val = max(Hypo_table[, c('Mowing', 'Grazing', 'Fertil')])
-  H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Mowing"),
-                         color  = rgb(pal.fnc(scale01(Hypo_table$Mowing)), maxColorValue=255))
-  H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Grazing"),
-                         color =  rgb(pal.fnc(scale01(Hypo_table$Grazing)), maxColorValue=255))
-  H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fertil"),
-                         color  =  rgb(pal.fnc(scale01(Hypo_table$Fertil )), maxColorValue=255))
-  
- # H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est_nocorr"),
- #                        background = rgb(pal.fnc(scale01(Hypo_table$Est_nocorr)), maxColorValue=255),
- #                        color = 'white',
- #                        bold  = Hypo_table$Signif == "YES",
- #                        italic  = !Hypo_table$Signif == "no"
- # )
-  
   H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fit_exp"),
                          background = ifelse(is.na(Hypo_table$Fit_exp) | Hypo_table$Fit_exp == 'Inconclusive', 'grey', 'white')
   )
-  #H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Fit_exp_nocorr"),
-  #                       background = ifelse(is.na(Hypo_table$Fit_exp_nocorr) | Hypo_table$Fit_exp_nocorr == 'Inconclusive', 'grey', 'white')
-  #)
-  
   
   H_kable = gsub( '+', '&#43;', H_kable, fixed = T)
   H_kable = gsub( '@@@', '&#', H_kable)
-  H_kable %>% pack_rows(index = table(as.character(Hypo_table$Group)))
-  
+  H_kable
 }
 
-```
-
-Parameters: environmental correction is `r env_corr`.
-
-```{r Data input, echo = FALSE, include = FALSE}
-# Environment data (LUI 2008-2017) ####
-data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") 
-
-# Check intra v. inter plot variation in LUI
-#VP = varpart(data_lui[Year > 2007 & Year <= 2018, LUI], data_lui[Year > 2007 & Year <= 2018, factor(PLOTID)],data_lui[Year > 2007 & Year <= 2018, factor(Year)])
-#modLUI = lm(LUI ~ factor(PLOTID)*factor(Year), data = data_lui)
-
-data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI),
-                           Mowing = mean(M_STD),
-                           Fertil = mean(F_STD),
-                           Grazing = mean(G_STD)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
-data_lui[, c('Fertilisation', 'Disturbance') := list( Fertil, sqrt(Mowing/mean(Mowing) + Grazing/mean(Grazing)))]
-
-
-env_data <- data.table(read_excel("Data/Environment_function_data/31018_5_Dataset/31018_5_data.xslx", sheet = 1))
-env_data[, Plot := EP_PlotID]
-env_data_lui = merge.data.table(data_lui, env_data[, c('Plot', 'LII',   "Soil.pH", "Soil.depth", "Soil.clay.content" , "Soil.sand.content", "TWI" , 'Grassland.1000')], by = 'Plot')
-      Temp = fread("Data/Environment_function_data/Ta_200_2008_2018_3a7aa69b37636254/plots.csv")
-      Precip = fread("Data/Environment_function_data/precipitation_radolan_95a5c5f55a798133/plots.csv")
-      Climate_data <- merge.data.table(Temp[, plotID := gsub('f', '', plotID)], Precip, by = c('plotID', 'datetime'))
-      Climate_data[, Plot := plotID]
-      Climate <- Climate_data[datetime>=2008 & datetime <= 2018, list("Mean_Temp" = mean(Ta_200, na.rm = T), "Mean_precip" = mean(precipitation_radolan, na.rm = T)), by = list("Plot" = plotID)]
-
-env_data_lui = merge.data.table(env_data_lui, Climate, by = 'Plot')
-  env_data_lui$Region = substr(env_data_lui$Plot, 1, 1)
-env_var = c("Soil.pH", #"Soil.depth", 
-            "Soil.clay.content", #, "Soil.sand.content", 
-            "TWI", 'Mean_Temp'#,'Mean_precip'
-            )
-env_data_lui[, (c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')) := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')]
-#env_var = c(env_var, 'Region')
-
-if (weight == TRUE){
-all_cwm_raw = fread('Data/CWM_data/All_CWM_data.csv')}
-if (weight == FALSE){
-all_cwm_raw = fread('Data/CWM_data/All_CWM_data_noweight.csv')}
-
-traits_to_use = traits_use=c( # birds
-       "birds_logBody_Mass",        "birds_logIncub_time",       "birds_logLongevity" ,            "birds_logBrood",    'birds_GenLength',          
- 
-  # Bats
-  "bats_logBody_mass"  ,         "bats_Lifespan"                , 'bats_Number_offspring',             
-  
-  # Plants 
-  "plants_Fine_roots_diameter", "plants_LDMC", "plants_LeafN", "plants_LeafP", "plants_Root_tissue_density", "plants_SLA_all", "plants_Seed_mass",
-             # Most arthropods
-  "arthropods_below_omni_carni_Dispersal_ability", "arthropods_below_omni_carni_logBody_Size", 
-"arthropods_below_herb_Dispersal_ability", "arthropods_below_herb_logBody_Size", 
-"arthropods_below_herb_Feeding_generalism", "arthropods_above_carni_Dispersal_ability", 
-"arthropods_above_carni_logBody_Size", "arthropods_above_herb_Dispersal_ability", 
-"arthropods_above_herb_logBody_Size", "arthropods_above_herb_Feeding_generalism", 
-"arthropods_above_herb_Generations", 
-              # Butterflies
-"butterflies_logFlight", 'butterflies_logSize',
-"butterflies_Wintering_stage", "butterflies_Generalism_use", 
-"butterflies_Voltinism_use", 
-              # Collembola and mites 
-"coll_logSize", "coll_Gen_per_year", "coll_Depth_preference",  "coll_Repro_sex", 
-"mites_logMass", "mites_Feeding_spec", 
-"mites_Habitat_spec", "mites_Repro_sex", 
-"mites_DaystoAdult", 
-              # Bacteria and fungi
- "bact_fungi_logVolume", "bact_fungi_OC_ratio", "bact_fungi_FB_ratio", "bact_fungi_pathogens", 'bact_fungi_Genome_size',
-              # Protists
-"protists_sec_cons_Size", "protists_bact_Size",  "protists_nutrition_code_primary_cons"
-)
-
-all_cwm_raw = all_cwm_raw[traitName2 %in% traits_to_use & grepl('G', Plot),]
- # This one will be used to calculate correlations with LUI, group-level PCAs, and non-miced main PCA (for the SI), it should be corrected for the environment but not miced
-
-all_cwm = copy(all_cwm_raw) # This one will be used to run PCAs to feed into the big PCA and SEM, it is miced and corrected for the environment
-all_traits = unique(all_cwm_raw$traitName2)
-
-# Aggregate by plot
-all_cwm_agg = all_cwm_raw[Year != 2020 , list(traitValue = mean(traitValue, na.rm = T), traitCoverage = mean(traitCoverage, na.rm = T)), by = c('Plot', 'traitName','Group', 'traitName2')]
-all_cwm_agg[!is.na(traitValue), length(unique(Plot)), by = Group] # plots available for use
-
-# Add environmental covariates
-all_cwm_lui = merge.data.table(all_cwm_agg, env_data_lui) 
-
-# Scale all trait data
-all_cwm_lui[, traitValue := scale(traitValue), by =c('Group','traitName2')]
-all_cwm_lui = all_cwm_lui[order(Group, traitName2, Plot),]
-# Mice with env corr as covariates (except LUI)
-mice_long = function(traitname, covar, data){
-  print(nrow(data))
-  all_var_cast = dcast.data.table(data, ... ~ traitName2, value.var = 'traitValue', .SDcols = c(traitname, covar, 'Plot'))
-  all_var_mice = data.table(mice::complete(mice(all_var_cast, printFlag = FALSE, seed = 101)))
-  all_var_melt =  melt.data.table(all_var_mice, id.vars = c(covar, 'Plot'), value.name = 'traitValue', variable.name = 'traitName2')
-    print(nrow(all_var_melt))
-
-  return(all_var_melt[order(traitName2, Plot), traitValue])
-}
-
-all_cwm_lui[, traitValue2 := mice_long(traitName2, env_var, .SD), .SDcols = c('traitName2', 'traitValue', env_var, 'Plot'), by = Group]
-# check
-# ggplot(all_cwm_lui[Group == 'Bact_fun'], aes(traitValue2, traitValue)) + geom_point() + facet_wrap(~Group)
-
-# Correct for environmental covariateq
-all_cwm_lui[, traitValue3 := corrections_long(traitValue2, .SD, env_corr), .SDcols = c(env_var, 'Region'), by = c('Group', 'traitName')]
-# check
-#ggplot(all_cwm_lui, aes(traitValue3, traitValue2)) + geom_point() + facet_wrap(~Group)
-
-all_cwm_lui[, value := traitValue3]
-
- # We can also put back as NA the miced values
-all_cwm_lui_not_imputed = copy(all_cwm_lui)
-all_cwm_lui_not_imputed[is.na(traitValue), value := NA]
-
- # This is the imputed dataset
-all_cwm = dcast.data.table( all_cwm_lui, Plot  + LUI + Disturbance + Fertilisation~ traitName2, value.var = 'value' )
-all_cwm_not_imputed = dcast.data.table(all_cwm_lui_not_imputed, Plot  + LUI + Disturbance + Fertilisation~ traitName2, value.var = 'value' )
-```
-
-```{r Mini SEMs, echo = FALSE, include = FALSE}
- LUI_component_effect = all_cwm_lui_not_imputed[, calculate_coeff_new(.SD), by = traitName2, .SDcols = c('Grazing', 'Mowing','Fertil', 'Fertilisation', 'Disturbance','value', #'value_uncorr', 
- 'LUI')]
-
-```
-
-## Hypotheses
-
-Check all hypotheses between traits and environmental drivers, and among traits
-```{r Create hypothesis table, echo = FALSE, eval = TRUE}
-
-#corr_mat <- cor(all_cwm[, .SD, .SDcols = c(all_traits, env_var, 'LUI', 'Fertil','Productivity' )], use = "pairwise.complete.obs")
-#corr_pmat <- cor_pmat(all_cwm[, .SD, .SDcols = c(all_traits, env_var, env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
-
-#corr_mat_uncorr <- cor(all_cwm_uncorr[, .SD, .SDcols = c(all_traits,env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
-#corr_pmat_uncorr <- cor_pmat(all_cwm_uncorr[, .SD, .SDcols = c(all_traits,env_var,env_var, 'LUI', 'Fertil','Productivity')], use = "pairwise.complete.obs")
-
-Hypothesis_table = fread('Hypotheses.txt')
-
-Hypothesis_table = Hypothesis_table[Trait_short %in% LUI_component_effect$traitName2 & Use =='y',]
-
-Hypothesis_table[, nrows := 1:nrow(Hypothesis_table)]
-
-# Adding values
-Hypothesis_table[Group != '', c("P", "Est", "CI","CI_low", 'CI_high', 'N', 'Mowing', 'Grazing', 'Fertil'#, 'P_uncorr', 'Est_nocorr', 'CI_nocorr'
-                                ) :=
-  list(
-    round(LUI_component_effect[traitName2 == Trait_short, p], 5),
-    round(LUI_component_effect[traitName2 == Trait_short, estimate], 2),
-    LUI_component_effect[traitName2 == Trait_short, ci],
-    LUI_component_effect[traitName2 == Trait_short, ci_low],
-    LUI_component_effect[traitName2 == Trait_short, ci_high],
-    LUI_component_effect[traitName2 == Trait_short, n],
-    round(LUI_component_effect[traitName2 == Trait_short, Mowing], 2),
-    round(LUI_component_effect[traitName2 == Trait_short, Grazing], 2),
-    round(LUI_component_effect[traitName2 == Trait_short, Fertil ], 2)#,
-    #round(LUI_component_effect[variable == Trait_short, p_uncorr], 5),
-    #round(LUI_component_effect[variable == Trait_short, estimate_uncorr], 2),
-    #LUI_component_effect[variable == Trait_short, ci_uncorr]
-    ), by = nrows]
-    
-  Hypothesis_table[,c('Direction'#, 'Direction_uncorr'
-                      ) := list(
-     ifelse(Expected_direction == '+/-',  ifelse(Est > 0, 'a', 'b'),
-         ifelse((Est > 0 & Expected_direction ==  "++") | (Est < 0 & Expected_direction ==  "--"), "yes", "no"))#,
-   #   ifelse(Expected_direction == '+/-',  ifelse(Est_nocorr > 0, 'a', 'b')#,
-   #      ifelse((Est_nocorr > 0 & Expected_direction ==  "++") | (Est_nocorr < 0 & Expected_direction ==  "--"), "yes", "no"))
-      )]
-
-  Hypothesis_table[, Padj := p.adjust(P, 'fdr')]
-Hypothesis_table[, Signif := ifelse(Padj < 0.05, 'YES', ifelse(P < 0.05, 'yes', 'no'))]
-
-
-    Hypothesis_table[,c('Fit_expectations') := list(
-     ifelse(Padj > 0.05, 'Inconclusive',
-            ifelse(Expected_direction == '+/-',  ifelse(Est > 0, 'As expected (fast)', 'As expected (slow)'),
-         ifelse(Est > 0 & Expected_direction ==  "++",  'As expected (fast)',
-             ifelse(Est < 0 & Expected_direction ==  "--", 'As expected (slow)', "Not expected"))))#,
-   #   ifelse(Expected_direction == '+/-',  ifelse(Est_nocorr > 0, 'a', 'b')#,
-   #      ifelse((Est_nocorr > 0 & Expected_direction ==  "++") | (Est_nocorr < 0 & Expected_direction ==  "--"), "yes", "no"))
-      )]
-
-
-#Hypothesis_table[, Padj_uncorr := p.adjust(P_uncorr, 'fdr')]
-#Hypothesis_table[, Signif_no_env_corr := ifelse(Padj_uncorr < 0.05, 'YES', ifelse(P_uncorr < 0.05, 'yes', 'no'))]
-
-return_hypo_result_color = function(Signif, Direction){
-  res = NA
-                                          if (Signif == 'no'){
-                                            res = 'Inconclusive' } 
-                                           if (Signif == 'yes'){
-                                             if (Direction %in% c('a', 'b')) {res = Direction}
-                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@10004;", "X")}  }
-                                             if (Signif == 'YES'){
-                                             if (Direction %in% c('a', 'b')) {res = toupper(Direction)}
-                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@9989;", "@@@10060;")} }
-  
-return(res)}
-
-
-Hypothesis_table[,  Fit_exp := return_hypo_result_color(Signif, Direction), by = 1:nrow(Hypothesis_table)]
-
-#Hypothesis_table[,  Fit_exp_nocorr := return_hypo_result(Signif_no_env_corr, Direction), by = 1:nrow(Hypothesis_table)]
-
-responding_traits = Hypothesis_table[ Fit_exp != 'Inconclusive' & Direction != "no", Trait_short]
-print_table(Hypothesis_table)
-```
-
-
-
-## Big PCA
-
-```{r Big PCA with all traits, echo = FALSE, eval = T, warning=FALSE, fig.show="hold", out.width="80%"}
-
-#all_cwm_miced <- copy(data.table(all_cwm))
-#all_cwm_miced$Plot = all_cwm$Plot
-
-```
-
-## Identification of strategy axes for each group
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
 # Function to auto run PCAs
-run_group_pca = function(cwm, traits, trait_direction, direction = '>0', plot = TRUE, env_corr, Labels = NA, annot = NA, naxes = 2){
-   pca_stand = my_dudi_pca(cwm, traits)
-   pca_stand = axes_direction_pca(pca, cwm, trait_direction, direction) # Correcting the direction of axes so that all slow>fat gos from left to right
-  
-   naxes = length(traits)
-   
-    corr_unsignificant = 0
-    for (trait in traits){
-     cor = cor.test(unlist(cwm[, ..trait]), pca$l1$RS1)
-    if (cor$p.value > 0.05){
-      corr_unsignificant = corr_unsignificant+1
-    }
-   }
-
-   
-   keep_criteria = data.table('More_than_random' = pca$eig[1] / (1/length(traits)),
-                              'Prop.traits.40' =   length(pca$c1$CS1[abs(pca$c1$CS1)>0.4])/length(pca$c1$CS1),
-                              'Prop.traits.25' =   length(pca$c1$CS1[abs(pca$c1$CS1)>0.25])/length(pca$c1$CS1),
-                              'Cor_unsignificant' =  corr_unsignificant)
-   keep_criteria[, enough_support := More_than_random >2 & Prop.traits.40 >= 0.60]
-   keep_criteria[, partial := More_than_random >2 & Prop.traits.25 >= 0.60 & Cor_unsignificant <= 1]
-   keep_criteria[, LUI.Axis1 := round(cor.test(cwm$LUI, pca$l1$RS1)$p.value, 3)]
-   keep_criteria[, LUI.Axis2 := round(cor.test(cwm$LUI, pca$l1$RS2)$p.value, 3)]
-
-
-   quanti.coord <- supcol(pca, scale(env_data_lui[Plot %in% cwm$Plot, .SD, .SDcols = c('LUI', 'Fertilisation', 'Disturbance')]))$cosup
-   quanti.coord$Lab = c('LUI', 'Fertilisation', 'Disturbance')
-   print(quanti.coord)
-
-    for (i in 1:2) { 
-       if (sum(pca_stand$li[, i] == -pca$li[, i]) != 0) { 
-         # If the direction of the pca was changed then we also change the direction of the supcol
-       quanti.coord[, i] <- -quanti.coord[, i]
-       }}
-        
-        
-if(any(is.na(Labels))){
-  Labels = traits
-}
-  names(Labels)  = traits
-
-if (is.na(annot)){
-  Criteria_label = ifelse(keep_criteria$enough_support, 'Criteria met', 'Criteria not met!')
-  if (keep_criteria$partial == TRUE & keep_criteria$enough_support != TRUE){
-    Criteria_label = paste('Criteria partially met', sep = ' ')
-  }
-  
-  Criteria_label = paste(Criteria_label, '\n Axis1 x LUI: p =', keep_criteria$LUI.Axis1,
-                         '\n Axis2 x LUI: p =', keep_criteria$LUI.Axis2, sep = '')
-}else{
-  Criteria_label =  annot
-}
-
-
-plot_pca_12 = fviz_pca(pca_stand, title = '', geom = 'point', geom.var = c("arrow", 'text'), habillage = substr(env_data_lui$Region, 1, 1), labelsize = 3, repel = T)
-plot_pca_12 =  fviz_add(plot_pca_12, quanti.coord, axes = c(1, 2), "arrow", color = "black", linetype = "solid", geom.var = c("arrow"), addlabel = TRUE, repel = T,  labelsize = 3)+
-  scale_shape_discrete( breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')+
-  scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region') +
-  annotate(geom = 'label', x = -Inf, y =+Inf, label = Criteria_label, hjust = -0.1, vjust = 1.5)
-
-
-     if (naxes >= 3){
-     plot_pca_13 <- fviz_pca(pca_stand, habillage = substr(cwm$Plot, 1, 1), alpha.ind = 1, geom = c("point"), xlim = c(-5, 5),  axes = c(1, 3),  palette = viridis(3, begin = 0.3), geom.var = c("arrow", "text"))
-     plot_pca_13 <- fviz_add(plot_pca_13, quanti.coord, axes = c(1, 3), "arrow", color = "black", linetype = "solid", repel = T, addlabel = T)
-     res = list(PCA = pca_stand, plot12 = plot_pca_12, plot13 = plot_pca_13, criteria = keep_criteria)
-     } else {
- res = list(PCA = pca_stand, plot12 = plot_pca_12, criteria = keep_criteria)
-     }
-   return(res)
-}
-
-
 run_group_pca2 = function(cwm, traits, trait_direction, direction = '>0', plot = TRUE, env_corr, Labels = NA, annot = NA, naxes = 2){
   
   data = data.frame(cwm[, .SD, .SDcols = c('LUI', 'Disturbance', 'Fertilisation', traits)])
@@ -512,21 +196,20 @@ data = data[complete.cases(data),]
    
      # Store the direction of the expected fast_slow axis (1 is left to right, -1 is right to left)
  direction_axis = numeric()
+  pca_to_plot = pca_stand
+
   for (i in 1:length(direction)){
    if (pca_stand$var$coord[trait_direction[i], i] > 0 & direction[i]  == '>0' |
        pca_stand$var$coord[trait_direction[i], i] < 0 & direction[i]  == '<0'){
     direction_axis = c(direction_axis, 1)
   } else {
     direction_axis = c(direction_axis,-1)
-      }
+  }
+ pca_to_plot$var$coord[,i] = pca_to_plot$var$coord[,i]*direction_axis[i]
+ pca_to_plot$ind$coord[,i] = pca_to_plot$ind$coord[,i]*direction_axis[i]
+ pca_to_plot$quanti.sup$coord[,i] = pca_to_plot$quanti.sup$coord[,i]*direction_axis[i]
   }
  
-     # Change direction
- pca_to_plot = pca_stand
- pca_to_plot$var$coord = pca_to_plot$var$coord*direction_axis
- pca_to_plot$ind$coord = pca_to_plot$ind$coord*direction_axis
- pca_to_plot$quanti.sup$coord = pca_to_plot$quanti.sup$coord*direction_axis
-
     naxes = length(traits)
    
     corr_unsignificant = 0
@@ -545,9 +228,7 @@ data = data[complete.cases(data),]
    keep_criteria[, partial := More_than_random >2 & Prop.traits.25 >= 0.60 & Cor_unsignificant <= 1]
    keep_criteria[, LUI.Axis1 := round(cor.test(data$LUI, pca_stand$ind$coord[,1])$p.value, 3)]
    keep_criteria[, LUI.Axis2 := round(cor.test(data$LUI, pca_stand$ind$coord[,1])$p.value, 3)]
-
-
-  names(Labels)  = traits
+   names(Labels)  = traits
 
 if (is.na(annot)){
   Criteria_label = ifelse(keep_criteria$enough_support, 'Criteria met', 'Criteria not met!')
@@ -574,225 +255,24 @@ if (env_corr == FALSE){
   scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')
 
 }
-
   res = list(PCA = pca_stand, plot12 = plot_pca_12, criteria = keep_criteria, direction = direction_axis)
-  
   return(res)
 }
-```
 
-### Plants, above- and below-ground
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-### With all traits
-#print_table(Hypothesis_table[Group %in% 'plants',])
-library(viridisLite)
-
-print('Plants, All')
-
-all_plant_traits = c("plants_LDMC" , "plants_LeafN", "plants_LeafP", "plants_Seed_mass", "plants_SLA_all" , "plants_Root_tissue_density")
-labels_plants =  c("LDMC"     , 
-                     "Leaf N"  , 
-                      "Leaf P" , 
-                     "Seed mass" ,
-                     "SLA",
-                   'Root tissue density')
-pca_plants_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, all_plant_traits ,Labels =labels_plants, 'plants_SLA_all')
-pca_plants_all$plot12
-pca_plants_all$criteria
-
-ggsave(plot = pca_plants_all$plot12,file = paste('Results/NOSIZE/Plant_com_pca.pdf', sep = ''), width = 6, height = 6)
-
-```
-
-## Bacteria & fungi
-
-```{r eval=T, echo=FALSE, fig.show="hold", message=FALSE, warning=FALSE, out.width="50%"}
-#print_table(Hypothesis_table[Group %in% c('bact_fungi'),])
-traits_Bact_fungi = c(#"bact_fungi_logVolume"   ,
-  "bact_fungi_Genome_size"  , 
-                  "bact_fungi_OC_ratio" , "bact_fungi_FB_ratio" ,"bact_fungi_pathogens"
-                  )
-labels_Bact_fungi =  c(#"Cell volume (bacteria)"     , 
-                     "Genome size (bacteria)"  , 
-                      "Oligotrophic:copiotrophic ratio (bacteria)" , 
-                     "Fungi:bacteria ratio" ,
-                     "Proportion plant pathogen (fungi)"
-                  )
-pca_mic = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Bact_fungi, 'bact_fungi_pathogens',  Labels = labels_Bact_fungi)
-pca_mic$plot12
-pca_mic$criteria
-
-ggsave(plot = pca_mic$plot12, file = paste('Results/NOSIZE/bact_fungi_OCm_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-## Arthropods, above-ground
-### Herbivores
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#print_table(Hypothesis_table[grepl('Arthropods', Group),])
-
-traits_Arthropods_above_herb = c("arthropods_above_herb_Dispersal_ability", #"arthropods_above_herb_logBody_Size" , 
-                                 "arthropods_above_herb_Feeding_generalism",    "arthropods_above_herb_Generations")
-labels_arthro_herb =  c("Dispersal"     , 
-                      #  "Body size" ,
-                        "Generalism"  , 
-                        "Gen. per year" 
-                  )
-pca_arthro_herb = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_above_herb, 'arthropods_above_herb_Dispersal_ability', Labels = labels_arthro_herb)
-pca_arthro_herb$plot12
-ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/NOSIZE/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 6, height = 6)
-
-
-traits_Arthropods_below_herb = c("arthropods_below_herb_Dispersal_ability", #"arthropods_below_herb_logBody_Size" , 
-                                 "arthropods_below_herb_Feeding_generalism")
-
-labels_arthro_below_herb =  c("Dispersal"     , 
-                          # "Body size" ,
-                           'Generalism'
-                  )
-pca_arthro_herb_below = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_below_herb, 'arthropods_below_herb_Dispersal_ability', Labels = labels_arthro_below_herb)
-
-pca_arthro_herb_below$plot12  = pca_arthro_herb_below$plot12 + ylim(c(-5, 4))
-pca_arthro_herb_below$criteria
+return_hypo_result_color = function(Signif, Direction){
+  res = NA
+                                          if (Signif == 'no'){
+                                            res = 'Inconclusive' } 
+                                           if (Signif == 'yes'){
+                                             if (Direction %in% c('a', 'b')) {res = Direction}
+                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@10004;", "X")}  }
+                                             if (Signif == 'YES'){
+                                             if (Direction %in% c('a', 'b')) {res = toupper(Direction)}
+                                             if (Direction %in% c('yes', 'no')) {res = ifelse(Direction == "yes", "@@@9989;", "@@@10060;")} }
   
-ggsave(plot = pca_arthro_herb_below$plot12,file =
-         paste('Results/NOSIZE/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
+return(res)}
 
-traits_Butterflies = c("butterflies_Generalism_use",
-                       #"butterflies_logSize",     
-                       "butterflies_Voltinism_use",
-                       "butterflies_Wintering_stage",
-                       "butterflies_logFlight")
-labels_but =  c("Generalism", 
-               # "Size" ,
-                "Voltinism" ,
-                "Hibernation stage", 
-                "Flight period"  
-                  )
-
-pca_but = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, Labels = labels_but, traits_Butterflies, 'butterflies_logFlight')
-pca_but$plot12
-pca_but$criteria
-
-#print_table(Hypothesis_table[Group  %in% c('Arthropods (herbivores)', 'Butterflies'),])
-
-ggsave(plot = pca_but$plot12, file = paste('Results/NOSIZE/Butterflies_com_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-### Predators
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#print_table(Hypothesis_table[grepl('Arthro',Group) & !grepl('herbi', Group),])
-traits_Arthropods_above_omni_carni = c('arthropods_above_carni_Dispersal_ability'#, 'arthropods_above_carni_logBody_Size'
-                                       )
-
-#labels_arthro_omni_carni = c('Dispersal', 'Body size')
-#pca_arthro_pred = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_above_omni_carni, #c('arthropods_above_carni_Dispersal_ability', 'arthropods_above_carni_Dispersal_ability'), direction = c('>0','>0'), Labels = #labels_arthro_omni_carni)
-#pca_arthro_pred$plot12
-#
-#ggsave(plot = pca_arthro_pred$plot12, file = paste('Results/NOSIZE/Arthro_oc_com_pca.pdf', sep = ''), width = 6, height = 6)
-
-
-traits_Arthropods_below_omni_carni = c('arthropods_below_omni_carni_Dispersal_ability' #,'arthropods_below_omni_carni_logBody_Size'
-)
-labels_arthro_below_omni_carni = c('Dispersal', 'Body size')
-
-#pca_arthro_pred_below = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_below_omni_carni, #'arthropods_below_omni_carni_Dispersal_ability', Labels = c('Dispersal', 'Body size'))
-#pca_arthro_pred_below$plot12
-#
-#ggsave(plot = pca_arthro_pred_below$plot12,file =
-#         paste('Results/NOSIZE/Arthro_oc_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-
-## Birds
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-
-  #print_table(Hypothesis_table[grepl('Birds', Group),])
-traits_Birds_insect = c(#"birds_logBody_Mass",   
-  "birds_logIncub_time"    ,   "birds_logBrood",      "birds_GenLength" ) 
-birds_labels = c(#'Body mass',
-'Incubation time', 'Offspring max',  'Generation time')
-pca_birds_all= run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Birds_insect, 'birds_logBrood', Labels = birds_labels)
-pca_birds_all$plot12
-pca_birds_all$criteria
-
-
-ggsave(plot = pca_birds_all$plot12,file =  paste('Results/NOSIZE/Birds_i_com_pca.pdf', sep = ''), width = 6, height = 6)
-
-
-```
-
-## Mites & collembola
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#print_table(Hypothesis_table[grepl('Mites', Group),])
-
-traits_Mites_all = c( "mites_Habitat_spec",  "mites_Repro_sex" , # "mites_logMass"   ,
-                      "mites_Feeding_spec","mites_DaystoAdult"     )
-mites_labels = c('Habitat specialisation', 'Sexual repro',# 'Body mass', 
-                 'Feeding specialisation', 'Days to adult')
-pca_mites_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Mites_all, 'mites_DaystoAdult', direction = '<0', Labels = mites_labels)
-pca_mites_all$plot12
-pca_mites_all$plot13
-pca_mites_all$criteria
-
-ggsave(plot = pca_mites_all$plot12,file = 
-         paste('Results/NOSIZE/Mites_com_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#print_table(Hypothesis_table[grepl('Coll', Group),])
-traits_Coll_all = c(  #"coll_logSize",  
-  "coll_Depth_preference", "coll_Gen_per_year"   ,    "coll_Repro_sex" )
-col_labels = c(#'Body size', 
-'Depth preference', 'Generations per year', 'Sexual reproduction')
-pca_coll_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Coll_all, 'coll_Depth_preference',  Labels = col_labels)
-pca_coll_all$plot12
-pca_coll_all$plot13
-pca_coll_all$criteria
-
-ggsave(plot = pca_coll_all$plot12, file = paste('Results/NOSIZE/Coll_com_pca.pdf', sep = ''), width = 6, height = 6)
-
-```
-
-## Bats
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#print_table(Hypothesis_table[grepl('Bats', Group),])
-
-traits_Bats =c(#"bats_logBody_mass" ,   
-  "bats_Lifespan"   ,      "bats_Number_offspring")
-bats_labels = c(#'Body mass',
-'Lifespan', 'Offspring')
-pca_bats_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Bats, 'bats_Number_offspring', Labels = bats_labels)
-pca_bats_all$plot12
-pca_bats_all$plot13
-pca_bats_all$criteria
-
-ggsave(plot = pca_bats_all$plot12,file = paste('Results/NOSIZE/Bats_com_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
-#big_pca
-cwm_cast = dcast(all_cwm_lui[traitName2 %in% Hypothesis_table$Trait_short], Plot ~ traitName2, value.var =  'value')
-cwm_cast$birds_GenLength = log(cwm_cast$birds_GenLength )
-# Weight traits by 1/n traits in the group to give same weight to all groups
-weight.data = all_cwm_lui[traitName2 %in% Hypothesis_table$Trait_short, list(trait = unique(traitName2), weight = 1/length(unique(traitName2))), by = Group]
-weights = weight.data$weight; names(weights) = weight.data$trait
-pca_all = PCA(cwm_cast[,-1], col.w = weights[colnames(cwm_cast[,-1])])
-slow_fast_expecations = Hypothesis_table$Expected_direction
-names(slow_fast_expecations) = Hypothesis_table$Trait_short
-fviz_pca(pca_all, col.var = slow_fast_expecations[colnames(cwm_cast)[-1]], palette = c(  '#3e4989', '#35b779'))
-
-ggsave(plot = pca_bats_all$plot12,file = paste('Results/NOSIZE/Bats_com_pca.pdf', sep = ''), width = 6, height = 6)
-```
-
-# Assemble data
-
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+## Function to convert a SEM into a text variable to facilitate SEM handling
 autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = T, Data = dd){
   # This function takes a model formula without parameters
   # and creates all the parameter names for direct, indirect and total effects
@@ -844,24 +324,19 @@ autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = 
   
       model_lines = append(model_lines, total_line)
       effect_list = append(effect_list, total)
-       
-      
     }
     else {
       total = paste('Total__', exo, '__', group, '__', trophic_levels[group], sep = '')
       total_line = paste(total, direct, sep = ' := ')
       model_lines = append(model_lines, total_line)
       effect_list = append(effect_list, total)
-      
-    }
-  }
-  }
+    }} }
   
   effect_list = unlist(effect_list)
   overall_effects = list()
   for (trophic_lvl in unique(trophic_levels[coefficients$lhs])){
     for (type in c('Direct', 'Indirect', 'Total')){
-          print(type)
+        #  print(type)
       if (!(type == 'Indirect' & trophic_lvl == 0)){
       for (exo in exo_var){
       effect = paste(type, exo, trophic_lvl, sep = '__')
@@ -878,24 +353,453 @@ autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = 
 }
 ```
 
-```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+```{r Data loading, echo = FALSE, include = FALSE}
+# In this chunk:
+# Load CWM and environmental datasets
 
-#### Check the criteria
-#criterias = rbind(pca_plants_all$criteria[, Group := 'plants'],
-#           pca_arthro_herb$criteria[, Group := 'arthro_herb'],
-#           pca_arthro_herb_below$criteria[, Group := 'arthro_herb_below'],
-#          # pca_arthro_pred$criteria[, Group := 'arthro_pred'],
-#           #pca_arthro_pred_below$criteria[, Group := 'arthro_pred_below'],
-#           pca_mic$criteria[, Group := 'mic'],
-#           pca_mites_all$criteria[, Group := 'mites'],
-#           pca_coll_all$criteria[, Group := 'coll'],
-#           pca_but$criteria[, Group := 'butterflies'],
-#           pca_birds_all$criteria[, Group := 'birds'],
-#           pca_bats_all$criteria[, Group := 'bats'])
-#
-#print(criterias)
+
+# Load and format LUI data
+data_lui_raw <- fread("Data/Environment_function_data/LUI_standardized_global.txt") 
+
+data_lui = data_lui_raw[Year > 2007 & Year <= 2018, list(LUI = mean(LUI),
+                           Mowing = mean(M_STD),
+                           Fertil = mean(F_STD),
+                           Grazing = mean(G_STD)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+data_lui[, c('Fertilisation', 'Disturbance') := list( Fertil, sqrt(Mowing/mean(Mowing) + Grazing/mean(Grazing)))]
+
+# Load and format environment data
+env_data <- data.table(read_excel("Data/Environment_function_data/31018_5_Dataset/31018_5_data.xslx", sheet = 1))
+env_data[, Plot := EP_PlotID]
+env_data_lui = merge.data.table(data_lui, env_data[, c('Plot', 'LII',   "Soil.pH", "Soil.depth", "Soil.clay.content" , "Soil.sand.content", "TWI" , 'Grassland.1000')], by = 'Plot')
+
+      Temp = fread("Data/Environment_function_data/Ta_200_2008_2018_3a7aa69b37636254/plots.csv")
+      Precip = fread("Data/Environment_function_data/precipitation_radolan_95a5c5f55a798133/plots.csv")
+      Climate_data <- merge.data.table(Temp[, plotID := gsub('f', '', plotID)], Precip, by = c('plotID', 'datetime'))
+      Climate_data[, Plot := plotID]
+      Climate <- Climate_data[datetime>=2008 & datetime <= 2018, list("Mean_Temp" = mean(Ta_200, na.rm = T), "Mean_precip" = mean(precipitation_radolan, na.rm = T)), by = list("Plot" = plotID)]
+# Mergge all environmental data
+env_data_lui = merge.data.table(env_data_lui, Climate, by = 'Plot')
+  env_data_lui$Region = substr(env_data_lui$Plot, 1, 1)
+  
+# Selection of environmental variables: removal of highly correlated variables (Soil.depth, Soil.sand.content, Mean_precip)
+env_var = c("Soil.pH", "Soil.clay.content", "TWI", 'Mean_Temp')
+env_data_lui[, (c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')) := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')]
+```
+
+```{r Correct data for environmental covariates, echo = FALSE, include = FALSE}
+# In this chunk:
+# Load CWM and environmental datasets
+
+# Load weighted or unweighted CWM dataset depending on the weight parameter (default = TRUE)
+if (weight == TRUE){
+all_cwm_raw = fread('Data/CWM_data/All_CWM_data.csv')
+}
+if (weight == FALSE){
+all_cwm_raw = fread('Data/CWM_data/All_CWM_data_noweight.csv')
+}
+
+# Selection of traits to be used in the analysis
+traits_to_use = traits_use=c( # birds
+       "birds_logBody_Mass",        "birds_logIncub_time",       "birds_logLongevity" ,            "birds_logBrood",    'birds_GenLength',          
+ 
+  # Bats
+  "bats_logBody_mass"  ,         "bats_Lifespan"                , 'bats_Number_offspring',             
+  
+  # Plants 
+  "plants_Fine_roots_diameter", "plants_LDMC", "plants_LeafN", "plants_LeafP", "plants_Root_tissue_density", "plants_SLA_all", "plants_Seed_mass",
+             # Most arthropods
+  "arthropods_below_omni_carni_Dispersal_ability", "arthropods_below_omni_carni_logBody_Size", 
+"arthropods_below_herb_Dispersal_ability", "arthropods_below_herb_logBody_Size", 
+"arthropods_below_herb_Feeding_generalism", "arthropods_above_carni_Dispersal_ability", 
+"arthropods_above_carni_logBody_Size", "arthropods_above_herb_Dispersal_ability", 
+"arthropods_above_herb_logBody_Size", "arthropods_above_herb_Feeding_generalism", 
+"arthropods_above_herb_Generations", 
+              # Butterflies
+"butterflies_logFlight", 'butterflies_logSize',
+"butterflies_Wintering_stage", "butterflies_Generalism_use", 
+"butterflies_Voltinism_use", 
+              # Collembola and mites 
+"coll_logSize", "coll_Gen_per_year", "coll_Depth_preference",  "coll_Repro_sex", 
+"mites_logMass", "mites_Feeding_spec", 
+"mites_Habitat_spec", "mites_Repro_sex", 
+"mites_DaystoAdult", 
+              # Bacteria and fungi
+ "bact_fungi_logVolume", "bact_fungi_OC_ratio", "bact_fungi_FB_ratio", "bact_fungi_pathogens", 'bact_fungi_Genome_size',
+              # Protists
+"protists_sec_cons_Size", "protists_bact_Size",  "protists_nutrition_code_primary_cons"
+)
+
+# Selection of only grassland plots if use of the full dataset
+all_cwm_raw = all_cwm_raw[traitName2 %in% traits_to_use & grepl('G', Plot),]
+ # all_cwm_raw  will be used to calculate correlations of traits with LUI, group-level PCAs, and non-gap-filled main PCA -> it is  corrected for the environment (if env_corr == TRUE) but not gap-filled
+
+all_cwm = copy(all_cwm_raw) # This one will be used to run guild-level PCAs to feed into the big PCA and SEM, it is gap-filled and corrected for the environment (if env_corr == TRUE)
+
+all_traits = unique(all_cwm_raw$traitName2)
+
+# Aggregate by plot
+all_cwm_agg = all_cwm_raw[Year != 2020 | is.na(Year) , list(traitValue = mean(traitValue, na.rm = T), traitCoverage = mean(traitCoverage, na.rm = T)), by = c('Plot', 'traitName','Group', 'traitName2')] # check trait coverage: % of abundance for which trait is available
+all_cwm_agg[!is.na(traitValue), length(unique(Plot)), by = Group] # How many plots available for use
+
+# Add environmental covariates
+all_cwm_lui = merge.data.table(all_cwm_agg, env_data_lui) 
+
+# Scale all trait data
+all_cwm_lui[, traitValue := scale(traitValue), by = c('Group','traitName2')]
+all_cwm_lui = all_cwm_lui[order(Group, traitName2, Plot),]
+
+# Fill gaps with environmental covariates (except LUI)
+mice_long = function(traitname, covar, data){
+  print(nrow(data))
+  all_var_cast = dcast.data.table(data, ... ~ traitName2, value.var = 'traitValue', .SDcols = c(traitname, covar, 'Plot'))
+  all_var_mice = data.table(mice::complete(mice(all_var_cast, printFlag = FALSE, seed = 101)))
+  all_var_melt =  melt.data.table(all_var_mice, id.vars = c(covar, 'Plot'), value.name = 'traitValue', variable.name = 'traitName2')
+    print(nrow(all_var_melt))
+  return(all_var_melt[order(traitName2, Plot), traitValue])
+}
+
+all_cwm_lui[, traitValue2 := mice_long(traitName2, env_var, .SD), .SDcols = c('traitName2', 'traitValue', env_var, 'Plot'), by = Group]
+
+# Correct for environmental covariateq
+all_cwm_lui[, traitValue3 := corrections_long(traitValue2, .SD, env_corr), .SDcols = c(env_var, 'Region'), by = c('Group', 'traitName')]
+
+all_cwm_lui[, value := traitValue3]
+
+ # We can also put back as NA the gap-filled values
+all_cwm_lui_not_imputed = copy(all_cwm_lui)
+all_cwm_lui_not_imputed[is.na(traitValue), value := NA]
+
+ # This is the datasets to be used
+all_cwm = dcast.data.table( all_cwm_lui, Plot  + LUI + Disturbance + Fertilisation ~ traitName2, value.var = 'value' )
+all_cwm_not_imputed = dcast.data.table(all_cwm_lui_not_imputed, Plot  + LUI + Disturbance + Fertilisation~ traitName2, value.var = 'value' )
+```
+
+# Check variation in LUI and CWM between years and plots for groups sampled multiple times
+
+```{r Check variation in LUI and CWM between years and plots for groups sampled multiple times, echo = FALSE, include = FALSE}
+modLUI = varpart(data_lui_raw[Year > 2007 & Year <= 2018, LUI], 
+             data_lui_raw[Year > 2007 & Year <= 2018, factor(PLOTID)],
+             data_lui_raw[Year > 2007 & Year <= 2018, factor(Year)])
+
+varpart_results = data.table(Group='LUI', Plot = round(modLUI$part$fract$Adj.R.squared[1], 3), 
+                                          Year = round(modLUI$part$fract$Adj.R.squared[2], 3), 
+                                          Residuals = round(1-modLUI$part$fract$Adj.R.squared[3], 2))
+# Find groups with more than one year
+multiyear_group = all_cwm_raw[, length(unique(Year)), by = Group][V1>1, Group]
+
+# We keep the bacteria + fungi for 2017 out as only one trait is available that year (fungi:bacteria ratio)
+for (group in multiyear_group){
+  data_cast = dcast(all_cwm_raw[Group == group & !(Year == 2017 & group == "Bact_fun"),], Plot + Year ~ traitName, value.var = 'traitValue')
+                    
+test = mice::complete(mice(data_cast, seed=101))
+mod <- varpart(test[, -c(1,2)], factor(test$Plot), factor(test$Year))
+
+varpart_results = rbind(varpart_results,
+                        data.table(Group=group, 
+                                   Plot = round(mod$part$fract$Adj.R.squared[1], 3), 
+                                   Year = round(mod$part$fract$Adj.R.squared[2], 3), 
+                                   Residuals = round(1-mod$part$fract$Adj.R.squared[3], 3)))}
+```
+
+## Hypotheses
+
+Check hypotheses between traits and land-use intensity
+```{r Trait-land use intensity table, echo = FALSE, eval = TRUE}
+# In this chunk I calculate all trait correlations with land-use intensity and check whether they fit with our hypotheses 
+ LUI_component_effect = all_cwm_lui_not_imputed[, calculate_coeff_new(.SD), by = traitName2, .SDcols = c('Grazing', 'Mowing','Fertil', 'Fertilisation', 'Disturbance','value', #'value_uncorr', 
+ 'LUI')]
+Hypothesis_table = fread('Hypotheses.txt')
+
+Hypothesis_table = Hypothesis_table[Trait_short %in% LUI_component_effect$traitName2 & Use =='y',]
+
+Hypothesis_table[, nrows := 1:nrow(Hypothesis_table)]
+
+# Adding values
+Hypothesis_table[Group != '', c("P", "Est", "CI","CI_low", 'CI_high', 'N', 'Mowing', 'Grazing', 'Fertil' ) :=
+  list(
+    round(LUI_component_effect[traitName2 == Trait_short, p], 5),
+    round(LUI_component_effect[traitName2 == Trait_short, estimate], 2),
+    LUI_component_effect[traitName2 == Trait_short, ci],
+    LUI_component_effect[traitName2 == Trait_short, ci_low],
+    LUI_component_effect[traitName2 == Trait_short, ci_high],
+    LUI_component_effect[traitName2 == Trait_short, n],
+    round(LUI_component_effect[traitName2 == Trait_short, Mowing], 2),
+    round(LUI_component_effect[traitName2 == Trait_short, Grazing], 2),
+    round(LUI_component_effect[traitName2 == Trait_short, Fertil ], 2)
+    ), by = nrows]
+    
+ Hypothesis_table[,c('Direction'
+                      ) := list(
+     ifelse(Expected_direction == '+/-',  ifelse(Est > 0, 'a', 'b'),
+         ifelse((Est > 0 & Expected_direction ==  "++") | (Est < 0 & Expected_direction ==  "--"), "yes", "no"))      )]
+
+  Hypothesis_table[, Padj := p.adjust(P, 'fdr')]
+Hypothesis_table[, Signif := ifelse(Padj < 0.05, 'YES', ifelse(P < 0.05, 'yes', 'no'))]
+
+    Hypothesis_table[,c('Fit_expectations') := list(
+     ifelse(Padj > 0.05, 'Inconclusive',
+            ifelse(Expected_direction == '+/-',  ifelse(Est > 0, 'As expected (fast)', 'As expected (slow)'),
+         ifelse(Est > 0 & Expected_direction ==  "++",  'As expected (fast)',
+             ifelse(Est < 0 & Expected_direction ==  "--", 'As expected (slow)', "Not expected"))))
+      )]
+
+Hypothesis_table[,  Fit_exp := return_hypo_result_color(Signif, Direction), by = 1:nrow(Hypothesis_table)]
+
+responding_traits = Hypothesis_table[ Fit_exp != 'Inconclusive' & Direction != "no", Trait_short]
+print_table(Hypothesis_table)
+```
+
+```{r Setup trait codes / trait labels, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+all_plant_traits = c("plants_LDMC" , "plants_LeafN", "plants_LeafP", "plants_Seed_mass", "plants_SLA_all" , "plants_Root_tissue_density")
+labels_plants =  c("LDMC",  "Leaf N",  "Leaf P",  "Seed mass", "SLA", 'Root tissue density')
+
+traits_Bact_fungi = c("bact_fungi_Genome_size"  , 
+                  "bact_fungi_OC_ratio" , "bact_fungi_FB_ratio" ,"bact_fungi_pathogens" )
+labels_Bact_fungi =  c("Genome size (bacteria)"  ,   "Oligotrophic:copiotrophic ratio (bacteria)" ,   "Fungi:bacteria ratio" ,  "Proportion plant pathogen (fungi)" )
+
+traits_Arthropods_above_herb = c("arthropods_above_herb_Dispersal_ability",        "arthropods_above_herb_Feeding_generalism",    "arthropods_above_herb_Generations")
+labels_arthro_herb =  c("Dispersal"     ,         "Generalism"  ,        "Gen. per year"  )
+
+traits_Arthropods_below_herb = c("arthropods_below_herb_Dispersal_ability",  "arthropods_below_herb_Feeding_generalism")
+labels_arthro_below_herb =  c("Dispersal", 'Generalism')
+
+traits_Butterflies = c("butterflies_Generalism_use",    "butterflies_Voltinism_use", "butterflies_Wintering_stage", "butterflies_logFlight")
+labels_but =  c("Generalism",   "Voltinism" , "Hibernation stage",  "Flight period"     )
+
+traits_Arthropods_above_omni_carni = c('arthropods_above_carni_Dispersal_ability')
+labels_arthro_omni_carni = c('Dispersal')
+
+traits_Arthropods_below_omni_carni = c('arthropods_below_omni_carni_Dispersal_ability')
+labels_arthro_below_omni_carni = c('Dispersal')
+
+traits_Birds_insect = c(     "birds_logIncub_time"    ,   "birds_logBrood",      "birds_GenLength" ) 
+birds_labels = c( 'Incubation time', 'Offspring max',  'Generation time')
+
+traits_Mites_all = c( "mites_Habitat_spec",  "mites_Repro_sex" ,  "mites_Feeding_spec","mites_DaystoAdult"     )
+mites_labels = c('Habitat specialisation', 'Sexual repro',  'Feeding specialisation', 'Days to adult')
+
+traits_Coll_all = c(   "coll_Depth_preference", "coll_Gen_per_year"   ,    "coll_Repro_sex" )
+col_labels = c( 'Depth preference', 'Generations per year', 'Sexual reproduction')
+
+traits_Bats =c(   "bats_Lifespan"   ,      "bats_Number_offspring")
+bats_labels = c( 'Lifespan', 'Offspring')
+
+```
+
+# Run PCA on all traits, downweighted by the number of each trait per group so that each groups has equal weight
+```{r PCA with all traits, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+cwm_cast = dcast(all_cwm_lui[traitName2 %in% Hypothesis_table$Trait_short], Plot + LUI ~ traitName2, value.var =  'value')
+cwm_cast$birds_GenLength = log(cwm_cast$birds_GenLength )
+new_col = c('Plot','LUI', c(letters, LETTERS)[1:(ncol(cwm_cast)-2)])
+names(new_col) = colnames(cwm_cast)
+
+# Weight traits by 1/n traits in the group to give same weight to all groups
+weight.data = all_cwm_lui[traitName2 %in% Hypothesis_table$Trait_short, list(trait = unique(traitName2), weight = 1/length(unique(traitName2))), by = Group]
+weights = weight.data$weight; names(weights) = weight.data$trait
+pca_all = PCA(cwm_cast[,-1], col.w = weights[colnames(cwm_cast[,-c(1,2)])], quanti.sup = 1)
+
+# Change labels
+rownames(pca_all$var$coord) =new_col[rownames(pca_all$var$coord)]
+rownames(pca_all$var$cor) =new_col[rownames(pca_all$var$cor)]
+rownames(pca_all$var$cos2) =new_col[rownames(pca_all$var$cos2)]
+rownames(pca_all$var$contrib) =new_col[rownames(pca_all$var$contrib)]
+
+slow_fast_expecations = Hypothesis_table$Expected_direction
+names(slow_fast_expecations) = Hypothesis_table$Trait_short
+pca_all_traits = fviz_pca(pca_all, repel = T, geom.ind = 'point', axes = c(1,2),  col.quanti.sup = 'darkred', col.var = slow_fast_expecations[colnames(cwm_cast)[-c(1,2)]],
+                          palette = c('#3e4989', '#35b779'), title = '') + theme(legend.position = 'none')
+
+
+ggsave(plot = pca_all_traits,file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/PCA_All_traits.pdf', sep = ''), width = 8, height = 5)
+```
+
+## Draw individual trait responses to LUI
+```{r Draw PCA with all traits, echo = FALSE, eval = TRUE}
+Hypothesis_table[, Group_f := Group]
+Hypothesis_table$Group_f = factor(Hypothesis_table$Group_f, levels=c( 'arthropods_above_carni','birds', 'bats',                                                         'plants','arthropods_above_herb','butterflies',
+         'bact_fungi',"protists",          "protists_bact" ,    "protists_sec_cons", 'coll','mites','arthropods_below_herb', 'arthropods_below_omni_carni'))
+
+recode_key = c(labels_plants,
+              "Genome size\n(bacteria)"      ,              
+   "Oligotrophic:copiotrophic\nratio (bacteria)" ,"Fungi:bacteria\nratio"   ,                   
+   "Proportion plant\npathogen (fungi)"  ,       
+                     labels_arthro_herb, labels_but, 
+                     labels_arthro_omni_carni, labels_arthro_below_herb, 
+                     labels_arthro_below_omni_carni, bats_labels,
+                     birds_labels, 
+   "Depth\npreference"   ,  "Generations\nper year", "Sexual\nreproduction" ,#col_labels, 
+               mites_labels,
+               '% Primary\nconsumers')
+
+names(recode_key)  <- c(all_plant_traits, traits_Bact_fungi, traits_Arthropods_above_herb, traits_Butterflies, traits_Arthropods_above_omni_carni,traits_Arthropods_below_herb, 
+traits_Arthropods_below_omni_carni, traits_Bats, 
+traits_Birds_insect, 
+traits_Coll_all, traits_Mites_all, 
+'protists_nutrition_code_primary_cons')
+
+Hypothesis_table[, labels := dplyr::recode(Trait_short, !!!recode_key)]
+
+design <- matrix(c(1,2,3,
+                   4, 5, 6,
+                   7, 8, 11,
+                   7, 9, 11,
+                   7, 10, 11,
+                   12, 13, 14), ncol = 3, byrow = TRUE)
+
+plot_traits = ggplot(Hypothesis_table, aes(x = reorder(labels, -Est), y = Est, ymin = CI_low, ymax = CI_high, color = Fit_expectations)) +
+  geom_point(size = 3) + geom_errorbar(width = 0.4, size = 1.5) + 
+  facet_manual(~Group_f,  scales = 'free',  strip.position = 'top', design = design, heights = c(4, 4, 1, 1, 1, 4)) +
+  ylim(c(-0.55, 0.7)) +
+  
+  coord_flip() + theme_bw() + geom_hline(yintercept = 0) +
+  scale_color_manual(breaks = c('Inconclusive', 'As expected (fast)', 'As expected (slow)', 'Not expected'), values = c('grey',   '#35b779','#3e4989',  '#cf4446')) + 
+  ylab('') + xlab('') +
+      theme(legend.position = 'none',
+            strip.text.x = element_text(size=13, hjust = -1, color = 'transparent'),
+            strip.text.y = element_text(size=2, face="bold"),
+            strip.background = element_rect( fill="transparent", color = 'transparent'),
+         # strip.color = element_rect( fill="transparent"),
+            panel.background = element_rect(fill='transparent'),
+          plot.background = element_rect(fill='transparent', color=NA),
+          panel.grid.minor = element_blank(),
+          legend.background = element_rect(fill='transparent'),
+          legend.box.background = element_rect(fill='transparent'),
+         panel.spacing = unit(1.2, "lines")
+      )+ 
+  geom_text(data = Hypothesis_table[!grepl('protists',Group_f),list(N = paste(unique(N), collapse = '/')), by = Group_f], aes(x = -Inf, y = -Inf, label = paste('N =', N)), inherit.aes = FALSE, vjust = -0.3,
+  hjust = -0.3, size = 3)
+
+plot_traits
+
+ggsave(plot_traits,file = 
+           paste('Results/NOSIZE/plot_traits.pdf', sep = ''), width = 10, height = 8)
+
+## Other possibility
+#all_cwm_melt = melt.data.table(all_cwm_not_imputed[, .SD, .SDcols = c('Plot', 'LUI', 'Disturbance', 'Fertilisation', #colnames(all_cwm_not_imputed)[colnames(all_cwm_not_imputed) %in% Hypothesis_table$Trait_short])], 
+#                               id.vars = c('Plot', 'LUI', 'Disturbance', 'Fertilisation'), variable.name = 'traitName', value.name = 'traitValue')
+#all_cwm_melt[, Group := tstrsplit(traitName,'_' )[1], by = traitName]
+```
+
+# Identification of slow-fast axes for each group
+
+### Plants, above- and below-ground
+Axis 1 is slow -> fast
+```{r Plants, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+pca_plants_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, all_plant_traits ,Labels =labels_plants, 'plants_SLA_all')
+pca_plants_all$plot12
+
+ggsave(plot = pca_plants_all$plot12,file = paste('Results/NOSIZE/Plant_com_pca.pdf', sep = ''), width = 6, height = 6)
+
+```
+
+## Bacteria & fungi
+Axis 1 is slow -> fast
+```{r "Bacteria and fungi", eval=T, echo=FALSE, fig.show="hold", message=FALSE, warning=FALSE, out.width="50%"}
+pca_mic = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Bact_fungi, 'bact_fungi_pathogens',  Labels = labels_Bact_fungi)
+pca_mic$plot12
+
+ggsave(plot = pca_mic$plot12, file = paste('Results/NOSIZE/bact_fungi_OCm_pca.pdf', sep = ''), width = 6, height = 6)
+```
+
+## Arthropods herbivores (below- and above-ground, incl. butterflies)
+In all cases axis 1 is slow -> fast, butterflies size is a bit off due to its measurement as wing size which is both a body size and dispersal trait
+
+```{r, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+# Above-ground arthropods
+
+pca_arthro_herb = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_above_herb, 'arthropods_above_herb_Dispersal_ability', Labels = labels_arthro_herb)
+pca_arthro_herb$plot12
+ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/NOSIZE/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 6, height = 6)
+
+# Below-ground arthropods
+pca_arthro_herb_below = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_below_herb, 'arthropods_below_herb_Dispersal_ability', Labels = labels_arthro_below_herb)
+
+pca_arthro_herb_below$plot12  = pca_arthro_herb_below$plot12 + ylim(c(-5, 4))
+pca_arthro_herb_below$criteria
+  
+ggsave(plot = pca_arthro_herb_below$plot12,file =
+         paste('Results/NOSIZE/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
+
+# Butterflies
+pca_but = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, Labels = labels_but, traits_Butterflies, 'butterflies_logFlight')
+pca_but$plot12
+pca_but$criteria
+
+ggsave(plot = pca_but$plot12, file = paste('Results/NOSIZE/Butterflies_com_pca.pdf', sep = ''), width = 6, height = 6)
+```
+
+### Arthropods, predators
+
+Only one trait: dispersal
+
+
+## Birds
+
+Axis 1 = slow -> fast axis
+```{r Birds, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+pca_birds_all= run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Birds_insect, 'birds_logBrood', Labels = birds_labels)
+pca_birds_all$plot12
+pca_birds_all$criteria
+
+ggsave(plot = pca_birds_all$plot12,file =  paste('Results/NOSIZE/Birds_i_com_pca.pdf', sep = ''), width = 6, height = 6)
+```
+
+## Mites & collembola
+Axis 1 = slow -> fast axis
+```{r Mites, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+pca_mites_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Mites_all, 'mites_DaystoAdult', direction = '<0', Labels = mites_labels)
+pca_mites_all$plot12
+pca_mites_all$plot13
+
+ggsave(plot = pca_mites_all$plot12,file = 
+         paste('Results/NOSIZE/Mites_com_pca.pdf', sep = ''), width = 6, height = 6)
+```
+
+Collembola: axis 1 = slow -> fast axis
+
+```{r Collembola, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+pca_coll_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Coll_all, 'coll_Depth_preference',  Labels = col_labels)
+pca_coll_all$plot12
+pca_coll_all$plot13
+pca_coll_all$criteria
+
+ggsave(plot = pca_coll_all$plot12, file = paste('Results/NOSIZE/Coll_com_pca.pdf', sep = ''), width = 6, height = 6)
+
+```
+
+## Bats
+Bats: axis 1 = slow -> fast axis
+```{r Bats, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="50%"}
+pca_bats_all = run_group_pca2(env_corr = env_corr, all_cwm_not_imputed, traits_Bats, 'bats_Number_offspring', Labels = bats_labels)
+pca_bats_all$plot12
+pca_bats_all$plot13
+pca_bats_all$criteria
+
+ggsave(plot = pca_bats_all$plot12,file = paste('Results/NOSIZE/Bats_com_pca.pdf', sep = ''), width = 6, height = 6)
+```
+
+# Assemble data for further analysis
+## Check Correlation between axes and LUI
+```{r Check axes criteria and correlations to LUI, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+
+#### Check the criteria for PCAs: do they represent a slow-fast axis?
+criterias = rbind(pca_plants_all$criteria[, Group := 'plants'],
+           pca_arthro_herb$criteria[, Group := 'arthro_herb'],
+           pca_arthro_herb_below$criteria[, Group := 'arthro_herb_below'],
+          # pca_arthro_pred$criteria[, Group := 'arthro_pred'],
+           #pca_arthro_pred_below$criteria[, Group := 'arthro_pred_below'],
+           pca_mic$criteria[, Group := 'mic'],
+           pca_mites_all$criteria[, Group := 'mites'],
+           pca_coll_all$criteria[, Group := 'coll'],
+           pca_but$criteria[, Group := 'butterflies'],
+           pca_birds_all$criteria[, Group := 'birds'],
+           pca_bats_all$criteria[, Group := 'bats'])
+
+print(criterias)
 
 #### Put all the PCA axes together to compare correlations to LUI. 
+# In some casis the slow-fast axis is multiplied by -1 so that increasing axis values means hypothetically faster system (this is just a normalisation step, as the direction of PCA axes is somewhat random)
+
 #sfx <- c("__Plants_primary_producers", "__Arthropods_primary_consumers_aboveground", '__Arthropods_primary_consumers_belowground', #"__Arthropods_secondary_consumers_aboveground", '__Arthropods_secondary_consumers_belowground','__Bacteria_and_fungi', #'__Protists_primary_consumers','__Protists_bacterivores', '__Protists_secondary_consumers',  '__Oribatid_mites_omnivores_belowgroud', #'__Collembola_omnivores_belowground', '__Lepidoptera_primary_consumers', '__Birds_tertiary_consumers', '__Bats_tertiary_consumers')
 #list.df = list(  # Getting all the axes and multiplying the slow-fast axis by -1 if needed so that increasing axis values means faster system
 #        data.table(  pca_plants_all$PCA$ind$coord[, 1:2], keep.rownames = TRUE)[, Map("*", .SD, c(pca_plants_all$direction, 1, 1)),  by= rn],
@@ -963,21 +867,21 @@ autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = 
 
 
 ### Now subset it to only fast-slow axes, multiplied by direction so that the axis goes from slow to fast
-# Check how much vriance is explained
-#prop = c( plant = pca_plants_all$PCA$eig[,2][ 1],
-#        Arth_herb = pca_arthro_herb$PCA$eig[,2][ifelse(weight == TRUE, 1, 2)], # When the data is not weighted by abundance, the fast-slow axis of herbivorous #arthropods above-ground is on PC2
-#        (Arth_herb_below = pca_arthro_herb_below$PCA$eig[,2][1]),
-#        (Arth_omnicarni= pca_arthro_pred$PCA$eig[,2][2]),
-#        (Arth_omnicarni_below = pca_arthro_pred_below$PCA$eig[,2][ 1]),
-#        (Bact_fungi = pca_mic$PCA$eig[,2][ 1]),
-#        (Mites = pca_mites_all$PCA$eig[,2][ 1]),
-#        (Coll = pca_coll_all$PCA$eig[,2][ 1]),
-#        (But  = pca_but$PCA$eig[,2][1]),
-#        (BirdsI  = pca_birds_all$PCA$eig[,2][ 1]),
-#        (Bats = pca_bats_all$PCA$eig[,2][ 1]))
-#mean(prop)
-#sd(prop)
-## When the data is not weighted by abundance, the fast-slow axis of herbivorous arthropods above-ground is on PC2
+# Check how much variance is explained
+prop = c( plant = pca_plants_all$PCA$eig[,2][ 1],
+        Arth_herb = pca_arthro_herb$PCA$eig[,2][1],
+        (Arth_herb_below = pca_arthro_herb_below$PCA$eig[,2][1]),
+       # (Arth_omnicarni= pca_arthro_pred$PCA$eig[,2][2]),
+       # (Arth_omnicarni_below = pca_arthro_pred_below$PCA$eig[,2][ 1]),
+        (Bact_fungi = pca_mic$PCA$eig[,2][ 1]),
+        (Mites = pca_mites_all$PCA$eig[,2][ 1]),
+        (Coll = pca_coll_all$PCA$eig[,2][ 1]),
+        (But  = pca_but$PCA$eig[,2][1]),
+        (BirdsI  = pca_birds_all$PCA$eig[,2][ 1]),
+        (Bats = pca_bats_all$PCA$eig[,2][ 1]))
+print(paste(c('Average variance explained by slow-fast axis:', round(mean(prop),1), '+/-', round(sd(prop), 1)), collapse = ' '))
+
+# Put all slow-fast axes in one dataset. the parameter $direction checks that we take the correct direction for each axis (faster = higher values)
 dd = Reduce(function(...) merge(..., all = TRUE, by = 'Plot'), 
   list( data.table(plant = pca_plants_all$PCA$ind$coord[, 1]*pca_plants_all$direction,
                    Plot  = rownames(pca_plants_all$PCA$ind$coord)),
@@ -1004,14 +908,15 @@ dd = Reduce(function(...) merge(..., all = TRUE, by = 'Plot'),
                    Plot = rownames(pca_birds_all$PCA$ind$coord)),
         data.table(Bats = pca_bats_all$PCA$ind$coord[, 1]*pca_bats_all$direction, 
                    Plot = rownames( pca_bats_all$PCA$ind$coord)),
-        env_data_lui[,.SD, .SDcols = c('LUI', 'LII', 'Fertil', 'Mowing', 'Grazing', "Disturbance", "Fertilisation",'Plot')]))
+        env_data_lui[,.SD, .SDcols = c( 'LUI', 'Fertil', 'Mowing', 'Grazing', "Disturbance", "Fertilisation",'Plot')]))
 
 
 all_col = colnames(dd)[-1]
 
+# Scale all columns so tht all weight the same in the PCA and SEMs
 dd[, (all_col) := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = all_col]
   
-# Then we mice it
+# Then we gap-fill the dataset. This will be used only in the main slow-fast PCA, not in the SEMs (which can handle missing values)
 dd_miced =   mice::complete(mice(dd[,  c('LUI', "Disturbance", "Fertilisation", "plant", "Arth_herb", "Arth_herb_below",
                            "Arth_omnicarni", 
                            "Arth_omnicarni_below","Bact_fungi",  "Protists_patho", # "Mites", 
@@ -1027,18 +932,20 @@ PCA_pca= PCA(dd_miced[,  c('LUI', "Disturbance", "Fertilisation", "plant", "Arth
                            "Arth_omnicarni_below","Bact_fungi",  "Protists_patho",  # "Mites",
                            "Coll", "But",   "BirdsI",  "Bats")], quanti.sup = 1:3)
 
+# We do different plots with or without the individual LUI components as additional variables.
+# If env_corr is FALSE, the points are colored by region. If TRUE, region has already been corrected for.
 if (env_corr == FALSE){
-pca_pca_plot = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow', 'text'), col.quanti.sup = 'darkred', col.var = 'grey30',
+pca_pca_plot = fviz_pca(PCA_pca, geom =c("point"), geom.var = c('arrow', 'text'), col.quanti.sup = 'darkred', col.var = 'grey30',
                        habillage = factor(substr(env_data_lui[Plot %in% dd$Plot,Plot], 1, 1)),
                         palette = viridis(3, begin = 0.3), repel = TRUE)
-pca_pca_plot_nolabel = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
+pca_pca_plot_nolabel = fviz_pca(PCA_pca, geom =c("point"), geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
                       habillage = factor(substr(env_data_lui[Plot %in% dd$Plot,Plot], 1, 1)), palette = viridis(3, begin = 0.3), repel = TRUE)
 
-pca_pca_plot_LUI = fviz_pca(PCA_pca_LUI, geom =c("point"),geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
+pca_pca_plot_LUI = fviz_pca(PCA_pca_LUI, geom =c("point"), geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
                        habillage = factor(substr(env_data_lui[Plot %in% dd$Plot,Plot], 1, 1)),
                        palette = viridis(3, begin = 0.3), repel = TRUE)}
 if (env_corr == TRUE){
-pca_pca_plot = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow', 'text'), col.quanti.sup = 'darkred', col.var = 'grey30',
+pca_pca_plot = fviz_pca(PCA_pca, geom =c("point"), geom.var = c('arrow', 'text'), col.quanti.sup = 'darkred', col.var = 'grey30',
                         repel = TRUE)
 pca_pca_plot_nolabel = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
                       repel = TRUE)
@@ -1046,16 +953,21 @@ pca_pca_plot_nolabel = fviz_pca(PCA_pca, geom =c("point"),geom.var = c('arrow'),
 pca_pca_plot_LUI = fviz_pca(PCA_pca_LUI, geom =c("point"),geom.var = c('arrow'), col.quanti.sup = 'darkred', col.var = 'grey30',
                        repel = TRUE)}
 
+# Save the plots
 ggsave(plot = pca_pca_plot ,file = paste('Results/NOSIZE/All_groups_pca.pdf', sep = ''), width = 8, height = 6)
-
 ggsave(plot = pca_pca_plot_LUI, file = paste('Results/NOSIZE/All_groups_pca_LUI_nolabel.pdf', sep = ''), width = 8, height = 6)
-
 ggsave(plot = pca_pca_plot_nolabel, file = paste('Results/NOSIZE/All_groups_pca_nolabel.pdf', sep = ''), width = 8, height = 6)
 
 # Test correlation between PCA axis 1 and LUI
-cor.test(PCA_pca$ind$coord[, 1], env_data_lui[Plot %in% dd$Plot,]$LUI)
+a = cor.test(PCA_pca$ind$coord[, 1], env_data_lui[Plot %in% dd$Plot,]$LUI)
+print(paste('Correlation between overall slow-fast axis and LUI:', round(a$estimate, 2), ', pvalue =', a$p.value))
+```
 
 
+# Run SEM
+
+## Define trophic levels
+```{r Define trophic levels, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
 Trophic_levels = list( "plant" = 0, 
                        "Arth_herb" = 1,
                     #   "Arth_herb_below" = 2,
@@ -1071,13 +983,14 @@ Trophic_levels = list( "plant" = 0,
                        "BirdsI"  = 3,  
                        "Bats"  = 3
                       )
-
 ```
 
-# Try SEM
 ## Run above-ground model, simple
 
-```{r, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+```{r Above-ground SEM, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# All SEM models are run twice: the first to setup the basic model equation and the second (with autowrite_SEM_full) so that the direct/indirect effects etc are also quantified. The second time is also bootstrapped to get confidence intervals.
+
+# First run
 mod_AG =  "
         plant ~ LUI 
         
@@ -1090,41 +1003,43 @@ mod_AG =  "
       
         Bats ~~ BirdsI
 "
- model_init_AG <- sem(mod_AG,
-    data = dd
-)
+ model_init_AG <- sem(mod_AG, data = dd)
 
+ # Full run
  model_AG = sem(paste(autowrite_SEM_full(model_init_AG, Trophic_levels), 'Bats ~~ BirdsI', sep = '\n'),
                 dd,
                 estimator = "ML",
                 missing = "ML",
-                se = 'bootstrap', bootstrap = 300
+                se = 'bootstrap', bootstrap = 200
                 )
  
+  # Save model output
  semtable_AG <- semTable (model_AG, fits = c('pvalue', 'rmsea', 'cfi', 'bic'), print.results = FALSE, type = 'csv', paste('Results/NOSIZE/SEM_table_AG.csv', sep = ''))
  
  fitmeasures(model_AG, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
+ # Plot model
+ ## Theoretical model
+ #  p_theo =  semPaths(model_init_AG,   whatLabels = 'no', layout = layout_AG, 
+ #             residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
+ #             node.width = 1)
  
  layout_AG <- matrix(c(
 # Pl1      aherb     but     Arth_omni       BirdsI    bats    LUI
 c(4,          5,       3,      3,              3,      5,       -2),
 c(0,          1.5,    1.5,     3,              4.5,   4.5,      0 )), ncol = 2)
+  ## Model results
  p =  semPaths(model_AG,  what = "std", whatLabels = 'no', #layout = layout_AG, 
                residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
                node.width = 1)
-  p_theo =  semPaths(model_init_AG,   whatLabels = 'no', layout = layout_AG, 
-               residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
-               node.width = 1)
-
  pdf(file = paste('Results/NOSIZE/SEM_AG.pdf', sep = ''), width = 5)
  plot(p)
  dev.off()
 ```
 
+## Run below-ground model
 
-## Run below-ground model, simple
-
-```{r, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+```{r Below-grund SEM, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# First run
 mod_BG_0 =  "
         plant ~ LUI 
         
@@ -1148,74 +1063,60 @@ mod_BG =  "
         
         Protists_patho  ~ LUI + plant
         Bact_fungi   ~      LUI + plant
-        
-       
         Coll   ~          LUI + plant + Bact_fungi 
 
         Arth_omnicarni_below ~ LUI  + Coll 
-
 "
  model_BG_init <- sem(mod_BG,
     data = dd)
   summary(model_BG_init, standardized = TRUE)
 
-#View(data.table(modificationindices(model_BG_init))[order(mi, decreasing = T), ])
-fitmeasures(model_BG_init, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
-
+# Full run
 model_BG = sem(paste(autowrite_SEM_full(model_BG_init, Trophic_levels), 'Protists_patho ~~ Bact_fungi \n Protists_patho ~~ 0*Arth_omnicarni_below', sep = '\n'),
                 dd,  
                 estimator = "ML",
                 missing = "ML",
-                se = 'bootstrap', bootstrap = 100
+                se = 'bootstrap', bootstrap = 200
                )
  
+ # Get model output
  semtable_BG <- semTable (model_BG, fits = c('pvalue', 'rmsea', 'cfi', 'bic'), print.results = FALSE, type = 'csv',paste('Results/NOSIZE/SEM_table_BG.csv', sep = ''))
  
  fitmeasures(model_BG, c("cfi", "rmsea", "rmsea.ci.upper", "bic"))
 
+ # Plot model
  ly2 <- matrix(c(
 # Pl1   Mic  Pro1    Mites ,   Prob;    Pro2    Coll  , Arth_herb_below, Arth_carni  LUI
 c(4,    3.5,  4.5,   5.5,     3.5,      2.5,     4.5,      4,    -2),
 c(0, -1.5,  -1.5,   -3,      -3,       -3,   -3,    - 4.5,        0)), ncol = 2)
 
+  ## Theoretical model 
+ #   p_theo =  semPaths(model_BG_init,   whatLabels = 'no', layout = ly2, 
+ #               residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
+ #               node.width = 1)
+ 
+ ##  Model results 
  p =  semPaths(model_BG,  what = "std", whatLabels = 'no',#layout = ly2, 
                residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
                node.width = 1)
  
-   p_theo =  semPaths(model_BG_init,   whatLabels = 'no', layout = ly2, 
-               residuals = F, edge.label.cex = 0, borders = F, vTrans = 0,
-               node.width = 1)
-
  pdf(file = paste('Results/NOSIZE/SEM_BG.pdf', sep = ''), width = 5)
  plot(p)
  dev.off()
 ```
 
 
-### Use the parameters defined in the simple SEM
+### Analyse and plot the SEM
 
-```{r, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+```{r Get parameters from SEMs, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
 # list trophic levels, AG and BG
-trophic_lvls = c( "LUI" = "LUI",
-                  "plant" = 0, 
-                       "Arth_herb" = 1,
-                  "Arth_herb_below" = 2,
-                       "But"  = 1,  
-                       "Arth_omnicarni" = 2,
-                       "Arth_omnicarni_below" = 3,
-                       "Bact_fungi"  = 1,  
-                       "Protists_patho"  = 1, 
-                    #   "Mites"  = 2, 
-                       "Coll"  = 2, 
-                       "BirdsI"  = 3,  
-                       "Bats"  = 3
-                      )
+trophic_lvls = c( "LUI" = "LUI", Trophic_levels)
 
   # Extract standardized parameters
   paramsAG <- data.table(lavaan::standardizedSolution(model_AG))
   paramsBG <- data.table(lavaan::standardizedSolution(model_BG))
   
-  # Edge properties: keep only unique roaws to have only 1 from LUI to plants
+  # Edge properties: keep only unique rows to have only 1 from LUI to plants
   param_edges <- unique(rbind(paramsAG[op %in% c("=~", "~", "~~") & lhs != rhs,
                           list(to = lhs,
                           from = rhs,
@@ -1242,14 +1143,13 @@ trophic_lvls = c( "LUI" = "LUI",
   param_nodes <- unique(rbind(paramsAG[lhs == rhs, list(metric = lhs, e = round(est.std, 2))],
                        paramsBG[lhs == rhs,        list(metric = lhs, e = round(est.std, 2))]))
   param_nodes = param_nodes#[-1,] # remove one of plant-LUI
+```
 
-  
+  ```{r Plot full SEM, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
   # Complete Graph Object
   param_graph <- tidygraph::tbl_graph(param_nodes, param_edges)
 
-  
-  library(scales)
-  # Plot
+    # Plot
    layout_all <- matrix(c(
 # Pl1  aherb  but     Arth_omni  BirdsI  bats LUI   Mic     Pro1    Mites ,    Prob;    Pro2    Coll  , Arth_carni
 c(4,    5,       3,      3,        3,      5,  -2 , #4, 
@@ -1259,7 +1159,6 @@ c(0,    1.5,    1.5,     3,        4.5,   4.5,  0 ,# 0,
 
    
 gg_fullSEM =  ggraph(param_graph, layout = layout_all)+
-          # Correlation Paths (no text)
     geom_edge_link(aes(color = ifelse(type == 'correlation', 1, NA)),
                    linetype = 'dotted', angle_calc = "along",
                    arrow = arrow(type = "closed", unit(.3, "cm"), ends = "both"),
@@ -1283,11 +1182,7 @@ gg_fullSEM =  ggraph(param_graph, layout = layout_all)+
 
     scale_edge_alpha(guide = FALSE, range = c(0.5, 1)) +
     scale_size(guide = FALSE) +
-    theme_graph(base_size = 1, base_family = 'Helvetica') +
-  theme(legend.position = 'none')+
-    #scale_edge_linetype_manual(#breaks = c(TRUE, FALSE), labels = c('p<0.05', 'p>0.05'), 
-    #                    #values = c('solid', 'dashed'), name = "Significance", 
-    #  guide = FALSE, na.value = "blank") +
+    theme_graph(base_size = 1, base_family = 'Helvetica') + theme(legend.position = "none") +
     scale_size_continuous(range = c(0.1, 1), breaks=pretty_breaks(5),  name = 'Estimate') +
     scale_edge_colour_gradient2(low = '#c51b7d', high = '#4d9221', mid = '#ffffbf', na.value = "white",midpoint = 0, breaks=pretty_breaks(5), name = 'Estimate') 
 
@@ -1295,24 +1190,19 @@ gg_fullSEM
 
  ggsave(gg_fullSEM, file = 
            paste('Results/NOSIZE/SEM_All.pdf', sep = ''), width = 8, height = 10)
-
-predef_par = rbind(
-           data.table(parameterEstimates(model_BG, boot.ci.type ='basic'))[op == ':=', .SD, .SDcols = c("label" , "pvalue" ,"est",  "ci.lower" , 'se',  "ci.upper")][
+```
+```{r Compare direct/indirect/total SEM effects, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+predef_par = rbind(data.table(parameterEstimates(model_BG, boot.ci.type ='basic'))[op == ':=', .SD, .SDcols = c("label" , "pvalue" ,"est",  "ci.lower" , 'se',  "ci.upper")][
                , where := 'BG',
              ],
                    data.table(parameterEstimates(model_AG, boot.ci.type ='basic'))[op == ':=', .SD, .SDcols = c("label" , "pvalue" ,"est",  "ci.lower" , 'se',  "ci.upper")][
-              , where := 'AG',
-             ])
+              , where := 'AG',])
 
 predef_par[!grepl('mean', label), c('In_Direct', 'Driver', 'Group', 'Trophic_lvl') := tstrsplit(gsub('\\.', '_', label), split = '__')]
 predef_par$Trophic_lvl = as.numeric(predef_par$Trophic_lvl)
 predef_par[is.na(Trophic_lvl), c('Trophic_lvl', 'Group') := list(Group, NA)]
 
-
-
-
 # Get overall estimate of direct, indirect, total effect
-library(fishmethods)
 predef_par[!is.na(Group) & In_Direct == 'Total', combinevar(est, se*se, n = rep(150,  length(est)))]
 predef_par[!is.na(Group) & In_Direct == 'Direct', combinevar(est, se*se, n = rep(150,  length(est)))]
 predef_par[!is.na(Group) & In_Direct == 'Indirect', combinevar(est, se*se, n = rep(150,  length(est)))]
@@ -1324,8 +1214,7 @@ predef_par = predef_par[!(grepl('__0', label) & where =='BG'),]
 data_to_plot = predef_par[is.na(Group),]
 data_to_plot[, Yend := ifelse(where == 'BG', -Trophic_lvl, Trophic_lvl)]
 
-# All effects together
-library(scales)
+# Plot all effects together
 gg_effects = ggplot() +
   geom_edges(data=data_to_plot, arrow = arrow( type = "closed",ends = "last",length = unit(0.1, "inches")),
              aes(x = 0, xend = 1, y = 0+Yend/8,yend = Yend, linetype = pvalue>0.05, color = est, size = abs(est))) +
@@ -1343,7 +1232,7 @@ gg_effects = ggplot() +
                         strip.text.x = element_text( size = 6, color = "NA"),
                         strip.background = element_rect(
      color="white", fill="white", size=1.5, linetype="solid"
-     ))+
+     )) +
   xlab('Trophic level') + ylab('Direct LUI effects')+
   scale_color_gradient2(low = '#c51b7d', high = '#4d9221', mid = '#ffffbf', na.value = "white",midpoint = 0, breaks=pretty_breaks(5), name = 'Estimate') 
 
@@ -1357,26 +1246,87 @@ gg_individual_groups = ggplot(data=predef_par[!is.na(Group) ,], aes(x = Trophic_
   geom_point( position = position_dodge(width = 0.3), aes( group = Group)) +
   geom_errorbar(width = 0.1, position = position_dodge(width = 0.3), aes(group = Group))+
   facet_wrap(~In_Direct, ncol = 1) +
-  theme_bw() +
+  theme_bw(base_size = 16) +
 theme(legend.position = 'bottom', panel.spacing = unit(1.5, "lines"),
                         strip.text.x = element_text( size = 6, color = "NA"),
                         strip.background = element_rect(
      color="white", fill="white", size=1.5, linetype="solid"
-     )) + xlab('Trophic level') + ylab('Estimate') +
+     )) +
+      xlab('Trophic level') + ylab('Estimate') +
   stat_poly_eq(aes(label = paste(paste(..eq.label.., ..rr.label.., sep = "~~~"),  stat(p.value.label), sep = ' ~~~')), 
                label.x.npc = "left", label.y.npc = 0.1,
-               formula = formula, parse = TRUE, size = 3)
+               formula = formula, parse = TRUE, size = 3.5)
 
 ggsave(gg_individual_groups, file =  paste('Results/NOSIZE/gg_individual_groups.pdf', sep = ''), width = 5, height = 12)
 
 ```
+# Test the relationship between slow-fast traits and ecoststem functions axes
 
+## We are going to compare the response of ecosystem functions to traits and multiple values including multidiversity (Allan et al 2014) so we first need to calculate it
 
+```{r Calculate multidiversity, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+if (!exists('multi.rich')){ # this can take a while so if the data was already assembled we don't do it again
+source('multidiv.R')
+  
+# Get diversities dataset ####
+## Raw diversity
+allsp <- fread("Data/Abundance_data/27707_2_Dataset/27707_2_data.csv")
+allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
+## Species information
+fgs <- fread("Data/Abundance_data/27706_3_Dataset/27706_3_data.csv")
+fgs$Species = gsub(' $', '', fgs$Species )
+fgs$Species = gsub(' ', '_', fgs$Species )
+Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
+Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
 
-```{r, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+#### Rarefaction for bacteria and fungi ###
+### Soil fungi ##
+fun.cast<-dcast.data.table(Abundance_all[Group_broad == 'soilfungi', list(value = value, 'Species_Year' = paste(Species, Year), Plot)],Species_Year~Plot,value.var="value",fill=0)
+fun.cast_matrix<-as.matrix(fun.cast[,-1])
+rownames(fun.cast_matrix)<-fun.cast$Species_Year
+fun_spec<-otu_table(fun.cast_matrix, taxa_are_rows = TRUE) # conversion step one for getting a phyloseq object
+fun_phylo<-phyloseq(fun_spec) # conversion step two for getting a phyloseq object
+Fungi_rarefied <- rarefy_even_depth(fun_phylo,
+                                      sample.size = min(sample_sums(fun_phylo)),
+                                      rngseed = 1, replace = FALSE, trimOTUs = TRUE,
+                                      verbose = TRUE) #sample size should be the smallest number of sequences #per sample
+# Transform to usable dataframe/datatable format in the long format
+Fungi_rarefied = data.frame(Fungi_rarefied)
+Fungi_rarefied_melt = melt.data.table(data.table(Fungi_rarefied)[, c('Species', 'Year') := tstrsplit(rownames(Fungi_rarefied), ' ')],
+                                          id.var = c('Species', 'Year'), value.name = 'value', variable.name = 'Plot')
 
-### Import functions dataset
-# load datasets
+## Soil bacteria ##
+bact.cast<-dcast.data.table(Abundance_all[Group_broad == 'bacteria.RNA', list(value = value, 'Species_Year' = paste(Species, Year), Plot)],Species_Year~Plot,value.var="value",fill=0)
+bact.cast_matrix<-as.matrix(bact.cast[,-1])
+rownames(bact.cast_matrix)<-bact.cast$Species_Year
+bact_spec<-otu_table(bact.cast_matrix, taxa_are_rows = TRUE) # conversion step one for getting a phyloseq object
+bact_phylo<-phyloseq(bact_spec) # conversion step two for getting a phyloseq object
+Bacteria_rarefied <- rarefy_even_depth(bact_phylo,
+                                   sample.size = min(sample_sums(bact_phylo)),
+                                   rngseed = 1, replace = FALSE, trimOTUs = TRUE,
+                                   verbose = TRUE) #sample size should be the smallest number of sequences per #sample
+## Transform to usable dataframe/datatable format in the long format
+Bacteria_rarefied = data.frame(Bacteria_rarefied)
+Bacteria_rarefied_melt = melt.data.table(data.table(Bacteria_rarefied)[, c('Species', 'Year') := tstrsplit(rownames(Bacteria_rarefied), ' ')],
+                                    id.var = c('Species', 'Year'), value.name = 'value', variable.name = 'Plot')
+##### Overwrite in Abundance dataset
+Abundance_all = Abundance_all[!(Group_broad %in% c('soilfungi', 'bacteria.RNA')), .SD, .SDcols = c('Species', 'Plot', 'value', 'Group_broad', 'Year')] # Remove the existing soil fungi data
+Abundance_all = rbind(Abundance_all, Fungi_rarefied_melt[, Group_broad := 'soilfungi']) # Re-add the rarefied #fungi data
+Abundance_all = rbind(Abundance_all, Bacteria_rarefied_melt[, Group_broad := 'bacteria.RNA']) # Re-add the #rarefied fungi data
+
+allsp.rich= Abundance_all[!(Group_broad %in% c("Hymenoptera", 'Mollusca',"Plant.pathogen",'Diptera"', 'Insect.larvae', 'Myriapoda','Formicidae', "Neuroptera", "Dictyoptera", "Dermaptera", "Opiliones")) & value>0, list(rich =length(unique(Species))), by=c("Plot","Group_broad")] # Calculate how many species with abundance > 0
+allsp.rich_cast = dcast.data.table(allsp.rich, Plot~ Group_broad, value.var = 'rich') # Turn into broad format
+groups = colnames(allsp.rich_cast)[-1]
+
+### Multidiversity
+multi.rich <- cbind(data.table(multidiv(allsp.rich_cast[,..groups])), Plot = allsp.rich_cast$Plot)
+}
+```
+
+## Check slow-fast effect on ecosystem functions slow-fast
+
+```{r Import and format functions dataset, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
+# Load datasets
 additional_info <- fread('Data/Environment_function_data/27087_21_Dataset/synthesis_grassland_function_metadata_ID27087.csv')
 additional_info <- additional_info[, .(ColumnName, AggregatedColumnName, codedYear)]
 setnames(additional_info, old = c("ColumnName", "codedYear"), new = c("variable", "Year"))
@@ -1421,15 +1371,18 @@ EF_clean = synth_func[, list(Plot = ifelse(nchar(Plot) == 5, Plot, paste(substr(
                           )
                            ]
 EF_clean = merge.data.table(EF_clean, Resp[!grepl('W', Plot),  list(Respiration = mean(Rs)), by = Plot])
+```
 
+```{r Get ecosystem functioning slow-fast axis, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
 # Check % of NAs
 EF_clean[, lapply(.SD, function(x){length(x[is.na(x)])/length(x)})]
 
 EF_clean_mice = data.table(mice::complete(mice(EF_clean, printFlag = F, method = 'mean')))
-#EF_clean_mice = merge(EF_clean_mice, multi.rich[, list('Plot' = Plot, 'multidiv' = m)], by = 'Plot')
+EF_clean_mice = merge(EF_clean_mice, multi.rich[, list('Plot' = Plot, 'multidiv' = m)], by = 'Plot')
 EF_clean_corr = corrections(EF_clean_mice,  Env_data = env_data_lui,  env_corr = env_corr, env_variables = c(env_var, 'Region'))
 EF_clean_corr = merge(EF_clean_corr, env_data_lui[, list(LUI, Fertilisation, Disturbance, Plot)])
 
+# The ecosystem functions in the PCA needs to be down-weighted so that each bundle of correlated functions (that are part of similar processes) is equally weighted
 variables_names_all = c(
                     'DEA',  # Nitrate flux bundle
                     'nifH',  # Nitrate flux bundle
@@ -1451,12 +1404,12 @@ variables_names_all = c(
                     'Root.decomposition',# Decomposition bundle
                     'Biomass.production', 
                     'Respiration')
-# weight for bundles
+# Weight for individual functions as parts of bundles
 var_weights = c(rep(1/8,8), rep(1/3,3),rep(1/3,3), 1, 1)
 
-# PCA all vars
+# PCA of all ecosystem functions
 pca_mf = PCA(EF_clean_corr[, .SD, .SDcols = c('LUI', 'Disturbance', 'Fertilisation', variables_names_all)], col.w = var_weights, quanti.sup = 1:3)
-
+# Plot the PCA, if env_corr == FALSE the dots are colored by the region
  if (env_corr == TRUE){
 fun_pca = fviz_pca(pca_mf, title = '', geom = 'point', geom.var = c("arrow"), col.quanti.sup = 'darkred', col.var = 'grey30')
 }
@@ -1466,11 +1419,11 @@ fun_pca = fviz_pca(pca_mf, title = '', geom = 'point', geom.var = c("arrow"), ha
   scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region') 
 }
    
-
  pdf(file = paste('Results/NOSIZE/PCA_functions.pdf', sep = ''), width = 6, height = 4)
 fun_pca
  dev.off()
 
+ # We also save the plot without labels to reuse in figures
  if (env_corr == TRUE){
    fun_pca = fviz_pca(pca_mf, title = '', geom = 'point', geom.var = c('text', "arrow"), col.quanti.sup = 'darkred', col.var = 'grey30', repel = T)
  }
@@ -1485,23 +1438,29 @@ fun_pca
  pdf(file = paste('Results/NOSIZE/PCA_functions_wtext.pdf', sep = ''), width = 6, height = 4)
 fun_pca
  dev.off()
+```
 
+```{r Compare slow-fast ecosystem response to traits, multidiv, LUI etc, eval = FALSE, echo = FALSE, warning=FALSE, eval = T,fig.show="hold", out.width="80%"}
 pca_main = data.frame(PCA_pca$ind$coord)
 colnames(pca_main) = paste(colnames(pca_main), '_all', sep = '')
 pca_main$Plot = dd$Plot
+
+pca_all_traits = data.frame(pca_all$ind$coord) # This is the PCA that takes all traits as input
+colnames(pca_all_traits) = paste(colnames(pca_all_traits), '_allTraits', sep = '')
+pca_all_traits$Plot = dd$Plot
 
 pca_functions = data.frame(pca_mf$ind$coord)
 colnames(pca_functions) = paste(colnames(pca_functions), '_fun', sep = '')
 pca_functions$Plot = EF_clean_corr$Plot
 
 pca_plants = data.frame(pca_plants_all$PCA$ind$coord)
-pca_plants[,1]= pca_plants[,1] * pca_plants_all$direction # Check that positive is fast
+pca_plants[,1]= pca_plants[,1] * pca_plants_all$direction # Check that positive values means faster
 
 colnames(pca_plants) = paste(colnames(pca_plants), '_plants', sep = '')
 pca_plants$Plot = rownames(pca_plants)
 
 pca_bact_fungi = data.frame(pca_mic$PCA$ind$coord)
-pca_bact_fungi[,1]= pca_bact_fungi[,1] * pca_mic$direction # Check that positive is fast
+pca_bact_fungi[,1]= pca_bact_fungi[,1] * pca_mic$direction # Check that positive values means faster
 colnames(pca_bact_fungi) = paste(colnames(pca_bact_fungi), '_mic', sep = '')
 pca_bact_fungi$Plot = rownames(pca_bact_fungi)
 
@@ -1509,16 +1468,18 @@ dat = merge(EF_clean_corr[, lapply(.SD, mean, na.rm = T), by = Plot], pca_main, 
 dat = merge(dat, pca_functions, by = 'Plot')
 dat = merge(dat, pca_plants, by = 'Plot')
 dat = merge(dat, pca_bact_fungi, by = 'Plot')
-#dat = merge(dat, env_data_lui[, c('Plot', 'LUI')], by = 'Plot')
+dat = merge(dat, pca_all_traits, by = 'Plot')
 
-
+# Scale variables
 dat[, LUI := scale(LUI)]
-dat[, cor.test(Dim.1_all, Dim.1_fun)]
-dat[, cor.test(LUI, Dim.1_mic)]
+dat[, multidiv := scale(multidiv)]
 
+# Run all models
 mod_all = step(lm(Dim.1_fun~ Dim.1_all , data = dat), trace = -1)
+mod_allTraits = step(lm(Dim.1_fun~ Dim.1_allTraits , data = dat), trace = -1)
 mod_mic = lm(Dim.1_fun ~ Dim.1_mic , data = dat)
 mod_plants = step(lm(Dim.1_fun~  Dim.1_plants, data = dat), trace = -1)
+mod_div = step(lm(Dim.1_fun~  multidiv, data = dat), trace = -1)
 mod_lui = step(lm(Dim.1_fun~  LUI, data = dat), trace = -1)
 
 output_model = function(model){
@@ -1531,15 +1492,18 @@ output_model = function(model){
 
 model_table = data.frame(matrix(c(
                    'Functions slow-fast ~ entire community slow-fast', output_model(mod_all),
+                   'Functions slow-fast ~ entire community slow-fast with all traits', output_model(mod_allTraits), 
                    'Functions slow-fast ~ plants slow-fast', output_model(mod_plants),
                    'Functions slow-fast ~ bacteria and fungi slow-fast', output_model(mod_mic),
-                   'Functions slow-fast ~ LUI',output_model(mod_lui)), ncol = 4, byrow = T))
+                   'Functions slow-fast ~ LUI',output_model(mod_lui),
+                   'Functions slow-fast ~ taxonomic multidiversity', output_model(mod_div)), ncol = 4, byrow = T))
 
 colnames(model_table) = c('Model', 'Estimate (sd)', 'Pval', 'R2')
 model_table$adj.P = p.adjust(as.numeric(model_table$Pval), 'fdr')
 print(model_table)
 
 
+# PCA slow-fast > functions
 sem_functions <- ' # direct effect
              Dim.1_fun ~ d*LUI
            # mediator
@@ -1555,8 +1519,8 @@ diff := indirect - d
          '
          
 mod_function = sem(sem_functions, data = dat, se = 'bootstrap')
-summary(mod_function)
-parameterestimates(mod_function, rsquare = TRUE)
+#summary(mod_function)
+#parameterestimates(mod_function, rsquare = TRUE)
 
 layout_fun = matrix(c(c(2, 1, 0),
                       c(0, 1, 0)), ncol = 2)
@@ -1568,7 +1532,7 @@ layout_fun = matrix(c(c(2, 1, 0),
                node.width = 3)
 
  
-  semtable_lui <- semTable(mod_function, fits = c('pvalue', 'rmsea', 'cfi', 'bic'), print.results = FALSE, type = 'csv',paste('Results/NOSIZE/SEM_table_lui.csv', sep = ''))
+#  semtable_lui <- semTable(mod_function, fits = c('pvalue', 'rmsea', 'cfi', 'bic'), print.results = FALSE, type = 'csv',paste('Results/NOSIZE/SEM_table_lui.csv', sep = ''))
   
   
  png(file = paste('Results/NOSIZE/SEM_functions.png', sep = ''), width = 600, height = 400)

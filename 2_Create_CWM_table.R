@@ -57,7 +57,7 @@ source('Traits_to_CWM/Traits_to_CWM_Arthropods.R') #ok
 
 ### Reimport and merge all datasets ####
 for (weighted in c(TRUE, FALSE)){
-all_data = data.table()
+≈ = data.table()
 for (group in c('birds', 'bats', 'plants', 'arthropods_below_omni_carni', 'arthropods_below_herb', 'arthropods_above_carni', 'arthropods_above_herb', 
                 'butterflies',  'coll', 'mites', 'microbes', 'protists_sec_cons', 'protists_bact','protists')){
 
@@ -140,3 +140,4 @@ if (weighted == TRUE){      fwrite(all_data, "Data/CWM_data/All_CWM_data.csv")}
 if (weighted == FALSE){     fwrite(all_data, "Data/CWM_data/All_CWM_data_noweight.csv")}
 
 }
+

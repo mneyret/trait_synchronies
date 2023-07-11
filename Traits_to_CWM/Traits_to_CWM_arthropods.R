@@ -136,7 +136,6 @@ Arthropod_traits = Arthropod_traits[!is.na(new_scientificName),]
 Arthropod_traits$Feeding_generalism = as.numeric(Arthropod_traits$Feeding_generalism)
 
 # Save species-matched trait data
-# Save species-matched trait data
 traitUnits = c("unitless","mm","unitless",'unitless', 'unitless',"unitless")
 traitDescription = c("Dispersal ability ranging from 0 to 1; definition differs across taxonomic groups (see Goessner et al. 2016)",
                      "Mean body length",
@@ -287,7 +286,6 @@ CWM_CC_Arthropods_below_omni_carni = merge.data.table(melt.data.table(CWM_Arthro
 
 
 # Add info
-# Dispersal_ability logBody_Size  Feeding_generalism Generations  
 traitUnits = c("unitless","mm","unitless","unitless")
 traitDescription = c("Dispersal ability ranging from 0 to 1; definition differs across taxonomic groups (see Goessner et al. 2016)",
                      "Mean body length",
@@ -361,18 +359,18 @@ CWM_Arthropods_below_omni_carni_noweight  = my_cwm(Arthropod_traits[Stratum_use_
 
 
 # Melt and merge
-CWM_CC_Arthropods_below_herb_noweight = merge.data.table(melt.data.table(CWM_Arthropods_below_herb[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
-                                               melt.data.table(Coverage_Arthropods_below_herb[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Arthropods_below_herb_noweight = merge.data.table(melt.data.table(CWM_Arthropods_below_herb_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                               melt.data.table(Coverage_Arthropods_below_herb_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
 
-CWM_CC_Arthropods_above_carni_noweight = merge.data.table(melt.data.table(CWM_Arthropods_above_omni_carni[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
-                                                 melt.data.table(Coverage_Arthropods_above_omni_carni[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Arthropods_above_carni_noweight = merge.data.table(melt.data.table(CWM_Arthropods_above_omni_carni_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                                 melt.data.table(Coverage_Arthropods_above_omni_carni_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
 
 
-CWM_CC_Arthropods_above_herb_noweight = merge.data.table(melt.data.table(CWM_Arthropods_above_herb[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
-                                                melt.data.table(Coverage_Arthropods_above_herb[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Arthropods_above_herb_noweight = merge.data.table(melt.data.table(CWM_Arthropods_above_herb_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                                melt.data.table(Coverage_Arthropods_above_herb_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
 
-CWM_CC_Arthropods_below_omni_carni_noweight = merge.data.table(melt.data.table(CWM_Arthropods_below_omni_carni[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
-                                                      melt.data.table(Coverage_Arthropods_below_carni[, Year := as.character(Year)], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
+CWM_CC_Arthropods_below_omni_carni_noweight = merge.data.table(melt.data.table(CWM_Arthropods_below_omni_carni_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitValue'),
+                                                      melt.data.table(Coverage_Arthropods_below_carni_noweight[, Year := 'NA'], id.vars = c('Plot', 'Year'), variable.name = "traitName", value.name = 'traitCoverage'))
 
 
 # Add info
@@ -488,7 +486,6 @@ coll_traits_info = add_info(coll_traits_melt, traitRef, traitDataID, traitDescri
 fwrite(coll_traits_info, "Data/Temporary_data/Coll_traits.csv")
 
 
-
 # ************************** #
 #### 2. Species-level PCA ####
 # ************************** #
@@ -529,8 +526,6 @@ CWM_CC_coll= merge.data.table(melt.data.table(CWM_coll[, Year := as.character(Ye
 
 
 # Add info
-# logSize         Gen_per_year     Depth_preference Ocelli           Repro_sex        Pigment          Furca            PAO             
-# PSO              Asp              Scales   
 traitUnits = c("mm (log-transformed)","unitless","unitless","unitless","%", '%', '%','%', '%', '%', '%')
 traitDescription = c("Body size",
                      "Number of generations per year (coded as bivoltine = 2, multivoltine = 3",
@@ -560,9 +555,9 @@ fwrite(CWM_CC_coll, "Data/CWM_data/CWM_coll.csv")
 Abundances_coll_presence_absence = Abundances_coll[, list(value = sum(value, na.rm = T), Year = 2019), by = list(Plot, Species)]
 Abundances_coll_presence_absence[value>1, value := 1]
 
-CC_coll_noweight = check_coverage(coll_traits, Abundances_coll, c( 'logSize', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
+CC_coll_noweight = check_coverage(coll_traits, Abundances_coll_presence_absence, c( 'logSize', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
 ), 'Species', 'Species')
-CWM_coll_noweight = my_cwm(coll_traits, Abundances_coll, c( 'logSize', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
+CWM_coll_noweight = my_cwm(coll_traits, Abundances_coll_presence_absence, c( 'logSize', 'Gen_per_year', 'Depth_preference', 'Repro_sex', 'Ocelli', 'Pigment', 'Furca', 'PAO', 'PSO', 'Asp', 'Scales'#, 'Vertical_preference'
 ), 'Species', 'Species')
 
 # Some traits are categorical  so we change the name for merging (e.g. Repro_sex_1 means proportion with sexual repro, Repro_sex_0 means proportion with no sexual repro, we keep Repro_sex as Repro_sex_1)
@@ -588,7 +583,6 @@ beta.multi.abund(comm.test_coll)
 
 comm_coll_min_max = matrix(c(colSums(comm.test_coll[min_lui_plots,]),colSums(comm.test_coll[max_lui_plots,])), nrow = 2)
 beta.multi.abund(comm_coll_min_max)
-
 
 
 ########################
@@ -635,12 +629,9 @@ mites_traits[, logMass := log(Mass)]
 
 # For species id to genus level, we take the average or value of other species from the same genus if it's consistent (mean > 2sd)
 # Carabodes_sp: only one species
-#mites_traits[grepl('Carabodes', Species),]
 mites_traits = rbind(mites_traits, mites_traits[grepl('Carabodes', Species), list(V1 = 'Carabodes_sp', Vertical_distribution.Morphotype, Surface,Litter,  Soil, Feeding, Reproduction, Mass, size100_500, 
                                                                                   size500_900, size900,  ash,  CuticuleCalcium, CuticuleNo, DaystoAdult, Species = 'Carabodes_sp' , Habitat_spec,Feeding_spec, Repro_sex, logMass)])
 
-# Carabodes_sp: only one species
-#mites_traits[grepl('Nothrus', Species),]
 mites_traits = rbind(mites_traits, mites_traits[grepl('Nothrus', Species), list(V1= 'Nothrus_sp', 
                                                                                 Vertical_distribution.Morphotype = unique(Vertical_distribution.Morphotype), 
                                                                                 Surface = unique(Surface),
@@ -747,14 +738,6 @@ CWM_CC_mites = add_info(CWM_CC_mites, traitRef, traitDataID, traitDescription, t
 fwrite(CWM_CC_mites, "Data/CWM_data/CWM_mites.csv")
 
 
-#write.csv(Mites_cwm_all[, list( "mites_Hab_spec" = Habitat_spec,
-#                                "mites_Sex" = Repro_sex_1,
-#                                "mites_Mass" = logMass,
-#                                "mites_Feed_spec" = Feeding_spec,
-#                                "mites_DaysAdult" = DaystoAdult,
-#                                "Plot" = Plot,
-#                                "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Mites_all.csv")
-#
 # ************************************** #
 #### 4. Non-weighted community traits ####
 # ************************************** #
@@ -784,16 +767,6 @@ CWM_CC_mites_noweight = merge.data.table(melt.data.table(CWM_Mites_noweight[, Ye
 CWM_CC_mites_noweight = add_info(CWM_CC_mites_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('27406 synthesised in 27707'))
 
 fwrite(CWM_CC_mites_noweight, "Data/CWM_data/CWM_mites_noweight.csv")
-
-#write.csv(Mites_cwm_all_noweight[, list( "mites_Hab_spec" = Habitat_spec,
-#                                "mites_Sex" = Repro_sex_1,
-#                                "mites_Mass" = logMass,
-#                                "mites_Feed_spec" = Feeding_spec,
-#                                "mites_DaysAdult" = DaystoAdult,
-#                                "Plot" = Plot,
-#                                "Year" = Year )], "/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Data/CWM_data/CWM_Mites_all_noweight.csv")
-#
-
 
 # ****************** #
 #### 5. Turnover ####

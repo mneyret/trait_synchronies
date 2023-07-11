@@ -1,6 +1,8 @@
 # This script takes as input the OTU abundances, bacteiral traits and community-level fungal trait information
 # and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
+# Gbif version: Pre-Nov 2022 (taxonomy matching might change afterwards)
+
 # ***************************** #
 #### 1. Load and merge data ####
 # **************************** #
@@ -106,7 +108,7 @@ Bact_traits_all = fread("Data/Temporary_data/Bact_traits_all.csv")
 #### 2. Trait manipulation ####
 # *************************** #
 
-## Copio/oligo
+## Copiotrophs/oligotrophs
 # Add % of copio and oligotrophs
 copio_groups = c('Actinobacteria', 'Betaproteobacteria', 'Gammaproteobacteria', 'Proteobacteria', 'Bacteroidetes')
 oligo_groups = c('Acidobacteria', 'Verrucomicrobia', 'Planctomycetes')
@@ -301,6 +303,7 @@ fviz_pca(pca_mic)
 
 # Use order values when needed
 CC_genus_order  <- check_coverage(Trait_genus_order, Abundance_genus, traits_all, "Std_Genus", "Std_Genus")
+
 # Add to match CWM categorical variables
 CC_genus_order[, OC_ratio := oli_copio.value]
 Trait_genus_order[, lapply(.SD, function(x){length(x[!is.na(x)])})]
@@ -374,7 +377,7 @@ CC_genus_order_noweight  <- check_coverage(Trait_genus_order, Abundance_genus_pr
 CC_genus_order_noweight[, OC_ratio := oli_copio.value]
 
 # Calculate CWM
-CWM_bacterias_GO_noweight <- my_cwm(Trait_genus_order, Abundance_genus, traits_all, "Std_Genus", "taxo")
+CWM_bacterias_GO_noweight <- my_cwm(Trait_genus_order, Abundance_genus_presence_absence, traits_all, "Std_Genus", "taxo")
 CWM_bacterias_GO_noweight[, OC_ratio := oli_copio.value_oligo/oli_copio.value_copio]
 
 # Melt and merge
@@ -387,96 +390,4 @@ CWM_CC_bacterias_noweight = CWM_CC_bacterias_noweight[traitName %in% c('logLengt
 CWM_CC_bacterias_noweight = add_info(CWM_CC_bacterias_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('21446, 21447, 21448, 21449, 24690, 25306 synthesised in 27707'))
 
 fwrite(CWM_CC_bacterias_noweight, "Data/CWM_data/CWM_microbes_noweight.csv")
-
-
-
-#  ###################  #
-#### Additional data ####
-#  ###################  #
-
-## We also add FB ratio from corresponding datasets
-#microb_soil_prop_2011 <- fread("Traits/Bacteria/Others/20250.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/20250
-#microb_soil_prop_2014 <- fread("Traits/Bacteria/Others/20251.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/20251
-#
-#microb_soil_prop = rbindlist(list(microb_soil_prop_2011[, c('Year', 'EP_Plot_ID', 'fungi_bacteria', 'Ratio_Cmic_Nmic',"gram_positive",  "gram_negative" )], 
-#                                  microb_soil_prop_2014[, c('Year', 'EP_Plot_ID', 'fungi_bacteria', "Ratio_Cmic_Nmic", "gram_positive",  "gram_negative")]))
-#microb_soil_prop[, Plot := ifelse(nchar(EP_Plot_ID) == 5, EP_Plot_ID, paste(substr(EP_Plot_ID, 1, 3), '0', substr(EP_Plot_ID, 4, 4), sep = ''))]
-#
-#
-## And the proportion of each type of fungi
-### Raw diversity
-#allsp <- fread("Abundances/210112_EP_species_diversity_GRL_BEXIS.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
-#allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
-### Species information
-#fgs <- fread("Abundances/210112_EP_species_info_GRL_BEXIS.txt") # https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
-#fgs$Species = gsub(' $', '', fgs$Species )
-#fgs$Species = gsub(' ', '_', fgs$Species )
-#
-#Abundance_all <- merge.data.table(allsp, fgs, by ="Species", all.x=TRUE)
-#Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), '0', substr(Plot, 4, 4), sep = ''))]
-#Abundances_fungi = Abundance_all[Group_broad == "soilfungi",]
-#table(Abundances_fungi[, c('Fun_group_broad', 'Fun_group_fine')])
-#Abundances_fungi[, sum(value), by = Group_fine]
-#
-#Prop_fun_group = Abundances_fungi[, list(value = sum(value)), by = c('Plot', 'Fun_group_broad', 'Year')]
-#Prop_fun_group = dcast.data.table(Prop_fun_group, Year+ Plot~Fun_group_broad, value.var = 'value')
-#Prop_fun_group_final = Prop_fun_group[, c('total', 'Year') := list(rowSums(.SD), as.numeric(Year)), .SD = c('soilfungi.decomposer', 'soilfungi.other', 'soilfungi.pathotroph', 'soilfungi.symbiont')]
-#Prop_fun_group_final[, c('soilfungi.decomposer', 'soilfungi.other', 'soilfungi.pathotroph', 'soilfungi.symbiont') := lapply(.SD, function(x){x/total}), .SD = c('soilfungi.decomposer', 'soilfungi.other', 'soilfungi.pathotroph', 'soilfungi.symbiont')]
-#
-#microb_soil_prop2 = merge(microb_soil_prop, Prop_fun_group_final, by = c('Plot', 'Year'), all = T)
-#
-#CWM_bacterias_GO_complete = merge(CWM_bacterias_GO, microb_soil_prop2[, c('Plot','Year','fungi_bacteria', 'Ratio_Cmic_Nmic', 'soilfungi.decomposer', 'soilfungi.pathotroph', 'soilfungi.symbiont')], by = c('Plot', 'Year'), all = T)
-#CWM_bacterias_GO_complete_noweight = merge(CWM_bacterias_GO_noweight, microb_soil_prop2[, c('Plot','Year','fungi_bacteria', 'Ratio_Cmic_Nmic', 'soilfungi.decomposer', 'soilfungi.pathotroph', 'soilfungi.symbiont')], by = c('Plot', 'Year'), all = T)
-#
-#
-##  ###############  #
-##### Output data ####
-##  ###############  #
-#
-## Select traits
-#CWM_bacterias_selection = CWM_bacterias_GO_complete[grepl('G', Plot), list(Plot = Plot,
-#                                                           Year = Year,
-#                                                           mic_Bvolume = logVolume,
-#                                                           mic_Bgenome_size.mean = genome_size.mean/1000,
-#                                                           mic_FB = fungi_bacteria,
-#                                                           mic_Fpathotroph = soilfungi.pathotroph,
-#                                                           mic_Fsymbionts =  soilfungi.symbiont,
-#                                                           mic_Fdecomposer = soilfungi.decomposer,
-#                                                           mic_OC_ratio = oli_copio.value_oligo/oli_copio.value_copio
-#                                                           )]
-#CWM_bacterias_selection_noweight = CWM_bacterias_GO_complete_noweight[grepl('G', Plot), list(Plot = Plot,
-#                                                                           Year = Year,
-#                                                                           mic_Bvolume = logVolume,
-#                                                                           mic_Bgenome_size.mean = genome_size.mean/1000,
-#                                                                           mic_FB = fungi_bacteria,
-#                                                                           mic_Fpathotroph = soilfungi.pathotroph,
-#                                                                           mic_Fsymbionts =  soilfungi.symbiont,
-#                                                                           mic_Fdecomposer = soilfungi.decomposer,
-#                                                                           mic_OC_ratio = oli_copio.value_oligo/oli_copio.value_copio
-#)]
-#
-#
-## Write full trait data
-#write_csv(Trait_genus_order, "Traits/Bacteria/Bacteria_traits_genus_order.csv")
-#write_csv(Trait_genus, "Traits/Bacteria/Bacteria_traits_genus.csv")
-#
-## Write selected trait data with community-level measures
-#write_csv(CWM_bacterias_selection, paste(cwm_path, 'CWM_Microbes.csv', sep= ''))
-#write_csv(CWM_bacterias_selection_noweight, paste(cwm_path,'CWM_Microbes_noweight.csv', sep= ''))
-#write_csv(CWM_bacterias_GO_complete, paste(cwm_path,'CWM_bacterias_GO.csv', sep= ''))
-#write_csv(CWM_bacterias_GO_complete_noweight, paste(cwm_path,'CWM_bacterias_GO_noweight.csv', sep= ''))
-#
-#
-#CWM_bacterias_agg = CWM_bacterias_selection[, lapply(.SD, mean, na.rm = T), .SDcols = colnames(CWM_bacterias_selection)[!colnames(CWM_bacterias_selection) %in% c('Plot', 'Year')], by = 'Plot']
-#bact_pca = dudi.pca(CWM_bacterias_agg[,-1], scannf = FALSE, nf = 3)
-#fviz_pca(bact_pca, habillage= substr(CWM_bacterias_agg$Plot, 1, 1))
-#fviz_pca(bact_pca, axes = c(2, 3), habillage= substr(CWM_bacterias_agg$Plot, 1, 1))
-#
-#for (r in c('A', 'H', 'S')){
-#  CWM_bacterias_agg = CWM_bacterias_selection[grepl(r, Plot), lapply(.SD, mean, na.rm = T), .SDcols = colnames(CWM_bacterias_selection)[!colnames(CWM_bacterias_selection) %in% c('Plot', 'Year')], by = 'Plot']
-#  bact_pca = dudi.pca(CWM_bacterias_agg[,-1], scannf = FALSE, nf = 3)
-#  plot(fviz_pca(bact_pca, title = r))
-#}
-#
-
 

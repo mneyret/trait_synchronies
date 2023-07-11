@@ -80,8 +80,6 @@ nyctaloid_species = c('Nyctalus_noctula', 'Vespertilio_murinus', 'Eptesicus_sero
 myotis_species = gsub(' ', '_', german_bats[grepl('Myotis', german_bats)]) # These are the german Myotis
 plecotus_species = gsub(' ', '_',german_bats[grepl('Plecotus', german_bats)]) # These are the german Plecotus
 
-#Bat_traits[, RWL := wing.loading/(body.mass^1/3)] # ref for RWL: https://www.nature.com/articles/s41598-019-41125-0
-
 # Trait subset to use
 all_traits = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", 'body.mass', "Duration", "Lifespan", "Number_offspring", 'Gen_length','logBody_mass')
 bat_traits2 = c('logBody_mass', 'Lifespan', 'Number_offspring')
@@ -210,6 +208,7 @@ Bats_CC_noweight = check_coverage(Bat_traits_full, Abundance_bats_presence_absen
 
 ### Calculate CWM 
 Bats_CWM_noweight = my_cwm(Bat_traits_full, Abundance_bats_presence_absence, all_traits, 'Species', 'Species')
+Bats_CWM_noweight$Year = as.character(Bats_CWM_noweight$Year)
 Bats_CWM_noweight$Year = 'NA'
 
 # Melt and merge

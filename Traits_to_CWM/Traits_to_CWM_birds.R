@@ -2,12 +2,7 @@
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
 
-
 Abundance_birds = Abundance_all[Group_broad == "Birds",]
-
-# Check weird species?
-summed = dcast(Abundance_birds[, list(value =sum(value)), by = c('Species', 'Plot')], Plot~Species)
-fviz_pca(PCA(summed[-1]))
 
 # ********************************** #
 #### 1. Load and merge trait data ####
@@ -355,16 +350,6 @@ CWM_CC_birds_insect_noweight = add_info(CWM_CC_birds_insect_noweight, traitRef, 
 
 fwrite(CWM_CC_birds_insect_noweight, "Data/CWM_data/CWM_birds_noweight.csv")
 
-#fwrite(CWM_birds_insect_noweight[, list( "Plot" = Plot               ,
-#                                "Year" = Year,
-#                                "Bi_Size" = log_body_len     ,
-#                                "Bi_Incub" = logIncub_time,
-#                                "Bi_TOffsprings" = log_offspring  ,
-#                                "Bi_AgeMax" = log_longevity,
-#                                "Bi_GenLength" = GenLength)
-                        
-#], paste(cwm_path, "CWM_birds_insect_noweight.csv", sep = ''))
-
 
 # ************************************ #
 #### Turnover accross LUI gradient ####
@@ -385,3 +370,4 @@ beta.multi.abund(comm.test)
 
 comm_min_max = matrix(c(colSums(comm.test[min_lui_plots,]),colSums(comm.test[max_lui_plots,])), nrow = 2)
 beta.multi.abund(comm_min_max)
+
