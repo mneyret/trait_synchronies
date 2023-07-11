@@ -283,20 +283,21 @@ Merged_traits[grepl('icarus', scientific_name_gbif),]
 # We fill them with additional data for some abundant species
 # data from http://lepiforum.org
 # and http://www.pyrgus.de
-#Lythria_purpuraria = data.table('scientific_name_gbif'= 'Lythria purpuraria', 'Flight_max' = 6, 'Wintering_stage' = 3, 'forewing_maximum' = 15, 'Generalism_use' = 1, 'Voltinism_use' = 2, 'B_Egg_number' = NA)
-#Zygaena_carniolica = data.table('scientific_name_gbif'= 'Zygaena carniolica', 'Flight_max' = 2, 'Wintering_stage' = 2, 'forewing_maximum' = 13, 'Generalism_use' = 3, 'Voltinism_use' = 1, 'B_Egg_number' = NA)
-#
-#Merged_traits = rbind(Merged_traits, rbind(Lythria_purpuraria, Zygaena_carniolica))
-#Merged_traits[scientific_name_gbif == 'Aphantopus hyperantus', Generalism_use := 3] #http://www.pyrgus.de/Aphantopus_hyperantus_en.html
-#
-#Merged_traits[, logSize := log(forewing_maximum)]
-#Merged_traits[, Eggs.log := log(B_Egg_number)]
-#Merged_traits[, logFlight := log(Flight_max)]
+Lythria_purpuraria = data.table('scientific_name_gbif'= 'Lythria purpuraria', 'Flight_max' = 6, 'Wintering_stage' = 3, 'forewing_maximum' = 15, 'Generalism_use' = 1, 'Voltinism_use' = 2, 'B_Egg_number' = NA)
+Zygaena_carniolica = data.table('scientific_name_gbif'= 'Zygaena carniolica', 'Flight_max' = 2, 'Wintering_stage' = 2, 'forewing_maximum' = 13, 'Generalism_use' = 3, 'Voltinism_use' = 1, 'B_Egg_number' = NA)
 
-#Merged_traits = Merged_traits[!is.na(scientific_name_gbif), lapply(.SD, mean, na.rm = T), by = scientific_name_gbif]
+Merged_traits = rbind(Merged_traits, rbind(Lythria_purpuraria, Zygaena_carniolica))
+Merged_traits[scientific_name_gbif == 'Aphantopus hyperantus', Generalism_use := 3] #http://www.pyrgus.de/Aphantopus_hyperantus_en.html
 
+Merged_traits[, logSize := log(forewing_maximum)]
+Merged_traits[, Eggs.log := log(B_Egg_number)]
+Merged_traits[, logFlight := log(Flight_max)]
 
-Merged_traits = fread('~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code/Data/Temporary_data/Lepidoptera_traits_matched.csv')
+Merged_traits = Merged_traits[!is.na(scientific_name_gbif), lapply(.SD, mean, na.rm = T), by = scientific_name_gbif]
+
+#Merged_traits = fwrite('Code/Data/Temporary_data/Lepidoptera_traits_matched.csv')
+
+Merged_traits = fread('Code/Data/Temporary_data/Lepidoptera_traits_matched.csv')
 
 Merged_traits[, logSize := Size.log]
 Merged_traits[, Wintering_stage := wintering_stage]
@@ -432,87 +433,4 @@ beta.multi.abund(comm.test)
 
 comm_min_max = matrix(c(colSums(comm.test[min_lui_plots,]),colSums(comm.test[max_lui_plots,])), nrow = 2)
 beta.multi.abund(comm_min_max)
-
-
-
-#### Save matched trait dataset ####
-
-# Short version, only custom codes
-#write.csv(Merged_traits, paste(matched_traits_path, 'Matched_lepidoptera.csv', sep = ''))
-
-#### Complete version, with verbatim codes and names
-#
-#Merged_traits_melt = melt.data.table(Merged_traits, id.vars = 'scientific_name_gbif', variable.name = "traitName", value.name = 'traitValue')
-#
-## UK database
-#merged_UK = merge.data.table(Merged_traits_melt, butterflies_UKtraits[, c('scientific_name','obligate_univoltine', 'partial_generation', 'obligate_multivoltine', 
-#                                                                          'specificity',
-#                                                                          'forewing_maximum', 'estimated_dry_mass', 
-#                                                                          "overwintering_egg", "overwintering_larva" ,"overwintering_pupa" ,"overwintering_adult", 
-#                                                                          'ad_jan', "ad_feb", "ad_mar", "ad_apr","ad_may", 'ad_jun', 'ad_jul', 'ad_agu', 'ad_sep', 'ad_oct', 'ad_nov', 'ad_dec','scientific_name_gbif')] , by = 'scientific_name_gbif')
-#
-#merged_UK[traitName == 'Voltinism_use', 'Generation_time' :=    paste(c('obligate_univoltine', 'partial_generation', 'obligate_multivoltine')[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c('obligate_univoltine', 'partial_generation', 'obligate_multivoltine'), by = scientific_name_gbif] 
-#merged_UK[traitName == 'Flight_max', 'Flight_month_adult' :=       paste(c('ad_jan', "ad_feb", "ad_mar", "ad_apr","ad_may", 'ad_jun', 'ad_jul', 'ad_agu', 'ad_sep', 'ad_oct', 'ad_nov', 'ad_dec')[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c('ad_jan', "ad_feb", "ad_mar", "ad_apr","ad_may", 'ad_jun', 'ad_jul', 'ad_agu', 'ad_sep', 'ad_oct', 'ad_nov', 'ad_dec'), by = scientific_name_gbif] 
-#merged_UK[traitName == 'Wintering_stage', 'Wintering_stage' :=  paste(c("overwintering_egg", "overwintering_larva" ,"overwintering_pupa" ,"overwintering_adult")[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c("overwintering_egg", "overwintering_larva" ,"overwintering_pupa" ,"overwintering_adult"), by = scientific_name_gbif] 
-#merged_UK[traitName == 'forewing_maximum', 'Forewing_maximum' := forewing_maximum] 
-#merged_UK[traitName == 'forewing_maximum', 'Estimated_dry_mass' := estimated_dry_mass] 
-#merged_UK[traitName == 'Generalism_use', 'Specificity' :=  specificity, by = scientific_name_gbif] 
-#
-#merged_UK_melt = melt.data.table(merged_UK[, list(traitName, Generation_time, Flight_month_adult, Wintering_stage, Specificity, Forewing_maximum, Estimated_dry_mass, verbatimScientificName = scientific_name, scientific_name_gbif)], id.vars = c('traitName', 'scientific_name_gbif','verbatimScientificName'), variable.name = 'verbatimTraitname', value.name = 'verbatimTraitValue')
-#merged_UK_melt = unique(merged_UK_melt[!is.na(verbatimTraitValue),])
-#merged_UK_melt[, Source := 'Cook et al. 2021, UK butterflies trait database']
-#
-## EU database
-#merged_EU = merge.data.table(Merged_traits_melt, butterflies_EUMaghreb[, c('Taxa name','Vol_biennial_0.5', 'Vol_univoltine_1', 'Vol_uni+partial2_1.5', 'Vol_bivoltine_2', 'Vol_multivoltine_3',
-#                                                                           'HPS_monophage', 'HPS_oligophag (within one genus)', 'HPS_oligophag (within one family )', 'HPS_polyphag',
-#                                                                           'FoL_var_male_average', 'FoL_HR_average',
-#                                                                           "OvS_egg_E", "OvS_larva_L" ,"OvS_pupa_P" ,"OvS_adult_A", 
-#                                                                           'scientific_name_gbif')] , by = 'scientific_name_gbif')
-#merged_EU = merge.data.table(merged_EU, butterflies_EUMaghreb_traits[, list(`Taxa name` = Taxon, FMo_Max, scientific_name_gbif)], by = c('Taxa name', 'scientific_name_gbif'))
-#
-#merged_EU[traitName == 'Voltinism_use', 'Generation_time' :=    paste(c('Vol_biennial_0.5', 'Vol_univoltine_1', 'Vol_uni+partial2_1.5', 'Vol_bivoltine_2', 'Vol_multivoltine_3')[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c('Vol_biennial_0.5', 'Vol_univoltine_1', 'Vol_uni+partial2_1.5', 'Vol_bivoltine_2', 'Vol_multivoltine_3'), by = scientific_name_gbif] 
-#merged_EU[traitName == 'Flight_max', 'fMo_Max' := FMo_Max] 
-#merged_EU[traitName == 'Wintering_stage', 'Wintering_stage' :=  paste(c("OvS_egg_E", "OvS_larva_L" ,"OvS_pupa_P" ,"OvS_adult_A")[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c("OvS_egg_E", "OvS_larva_L" ,"OvS_pupa_P" ,"OvS_adult_A"), by = scientific_name_gbif] 
-#merged_EU[traitName == 'forewing_maximum', 'foL_var_male_average' := FoL_var_male_average] 
-#merged_EU[traitName == 'forewing_maximum', 'foL_HR_average' := FoL_HR_average] 
-#merged_EU[traitName == 'Generalism_use', 'Specificity':=    paste(c('HPS_monophage', 'HPS_oligophag (within one genus)', 'HPS_oligophag (within one family )', 'HPS_polyphag')[!is.na(.SD) & .SD != 'NA' & .SD != ''], collapse = '; '), .SDcols = c( 'HPS_monophage', 'HPS_oligophag (within one genus)', 'HPS_oligophag (within one family )', 'HPS_polyphag'), by = scientific_name_gbif] 
-#
-#merged_EU_melt = melt.data.table(merged_EU[, list(traitName,Generation_time, fMo_Max, Wintering_stage, foL_var_male_average, foL_HR_average, Specificity, verbatimScientificName = `Taxa name`, scientific_name_gbif)], id.vars = c('traitName', 'scientific_name_gbif','verbatimScientificName'), variable.name = 'verbatimTraitname', value.name = 'verbatimTraitValue')
-#merged_EU_melt = unique(merged_EU_melt[!is.na(verbatimTraitValue),])
-#merged_EU_melt[, Source := 'Middleton-Welling et al. 2020, Europe and maghreb butterflies trait database']
-#
-#
-## Moths traits from Mangels et al. (Exploratories)
-#merged_moth_traits = merge.data.table(Merged_traits_melt[, list(scientific_name_gbif,  traitName, traitValue)], 
-#                                      moths_traits[, c('species',
-#                                                                           'voltinism',
-#                                                                           'feeding_niche',
-#                                                                           'size',  'wing_length',
-#                                                                           "hibernation", 
-#                                                                           'scientific_name_gbif')] , by = 'scientific_name_gbif')
-#
-#merged_moth_traits[traitName == 'Voltinism_use',    'Voltinism' :=   voltinism] 
-#merged_moth_traits[traitName == 'Wintering_stage',  'Hibernation' :=  hibernation] 
-#merged_moth_traits[traitName == 'forewing_maximum', 'Size' := size] 
-#merged_moth_traits[traitName == 'forewing_maximum', 'Wing_length' := wing_length] 
-#merged_moth_traits[traitName == 'Generalism_use',   'Feeding_niche':= feeding_niche] 
-#
-#merged_moth_traits_melt = melt.data.table(merged_moth_traits[, list(traitName, Voltinism, Hibernation, Size, Wing_length, Feeding_niche, verbatimScientificName = `species`, scientific_name_gbif)], id.vars = c('traitName', 'scientific_name_gbif','verbatimScientificName'), variable.name = 'verbatimTraitname', value.name = 'verbatimTraitValue')
-#merged_moth_traits_melt = unique(merged_moth_traits_melt[!is.na(verbatimTraitValue),])
-#merged_moth_traits_melt[, Source := 'Mangels et al.']
-#
-#
-## Put al datasources together
-#Merged_traits_all = rbindlist(list(
-#   merge.data.table(Merged_traits_melt, merged_UK_melt, id.vars = c('scientific_name_gbif', 'traitName')),
-#   merge.data.table(Merged_traits_melt, merged_moth_traits_melt, id.vars = c('scientific_name_gbif', 'traitName')),
-#   merge.data.table(Merged_traits_melt, merged_EU_melt, id.vars = c('scientific_name_gbif', 'traitName'), all.x = T)))
-#
-#
-#Merged_traits_all = Merged_traits_all[!is.na(Merged_traits_all$traitValue)]
-#Merged_traits_all[traitName == 'B_Egg_number', c('verbatimTraitname', 'Source') := list('Egg number', 'Boerschig et al. 2013')]
-#Merged_traits_all = Merged_traits_all[!(traitName %in% c('logSize', 'logFlight', 'Eggs.log'))]
-#Merged_traits_all[scientific_name_gbif == 'Lythria purpuraria', Source =  c('http://lepiforum.org, http://www.pyrgus.de')]
-#Merged_traits_all[scientific_name_gbif == 'Zygaena carniolica', Source =  c('http://lepiforum.org, http://www.pyrgus.de')]
-#Merged_traits_all[scientific_name_gbif == 'Aphantopus hyperantus', Source =  c('http://lepiforum.org, http://www.pyrgus.de')]
 

@@ -148,21 +148,8 @@ fwrite(Melted_traits_info, "Data/Temporary_data/Cercozoa_traits.csv")
 #### 2. Species-level PCA ####
 # ************************** #
 
-# We're using only the size trait
+# We're using only size 
 
-## Bacterial consumers
-#data_bact = Cercozoa_traits[nutrition_code == 'bacterial_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Size != 'NA',]
-#plot_bact = ggplot(data_bact, aes(Size, morpho_code)) + ylab('Morphology') + xlab('Size') +
-#  geom_jitter(width = 0.01, height = 0.1, alpha = 0.5) + theme_bw()
-#
-## Secondary consumers
-#data_sec = Cercozoa_traits[nutrition_code == 'secondary_cons' & Genus %in% Cercozoa_abundance_format[value>0 & grepl('G', Plot), unique(Genus)] & Size != 'NA',]
-#plot_sec = ggplot(data_sec, aes(Size, morpho_code)) + ylab('Morphology') + xlab('Size') +
-#  geom_jitter(width = 0.1, height = 0.1, alpha = 0.5) + theme_bw()
-#cor.test(data_sec$Naked, data_sec$Size)
-#
-#cor.test(data_sec$Size, data_sec$Naked_amoeba)
-#
 
 # ********************************** #
 #### 3. Community-weighted traits ####
@@ -218,24 +205,6 @@ CWM_CC_protists_sec_cons = add_info(CWM_CC_Protists_sec_cons, traitRef, traitDat
 fwrite(CWM_CC_protists, "Data/CWM_data/CWM_protists.csv")
 fwrite(CWM_CC_protists_bact, "Data/CWM_data/CWM_protists_bact.csv")
 fwrite(CWM_CC_protists_sec_cons, "Data/CWM_data/CWM_protists_sec_cons.csv")
-
-
-#write.csv(CWM_Protists[, list("P_patho" = nutrition_code_primary_cons/(nutrition_code_primary_prod+nutrition_code_primary_cons +nutrition_code_bacterial_cons+nutrition_code_secondary_cons),
-#                              "P_naked" = morpho_code_naked / (morpho_code_naked + morpho_code_testate),
-#                              "P_Size" = Size,
-#                                        "Plot" = Plot,
-#                                        "Year" = Year)], paste(cwm_path, 'CWM_Protists.csv',sep = ''))
-#write.csv(CWM_Protists_bact[, list("Pb_Naked" = morpho_code_naked / (morpho_code_testate+morpho_code_naked),
-#                                        "Pb_Size" = Size,
-#                                        "Plot" = Plot,
-#                                        "Year" = Year)],  paste(cwm_path, 'CWM_Protists_bact.csv',sep = ''))
-#
-#write.csv(CWM_Protists_sec_cons[, list("Ps_Naked" = morpho_code_naked / (morpho_code_testate+ morpho_code_naked + morpho_code_endo),
-#                                       "Ps_Size" = Size,
-#                                       "Plot" = Plot,
-#                                       "Year" = Year)],  paste(cwm_path, 'CWM_Protists_sec_cons.csv',sep = ''))
-#
-
 
 # ************************************** #
 #### 4. Non-weighted community traits ####

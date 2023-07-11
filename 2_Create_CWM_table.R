@@ -1,4 +1,3 @@
-
 library(ade4)
 library(betapart)
 library(car)
@@ -22,7 +21,7 @@ library(traitdataform)
 library(vegan)
 
 
-setwd("~/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code")
+setwd("~/Code")
 
 
 # Get the main abundance dataset (most CWM will be based on abundances from this dataset)
@@ -40,24 +39,18 @@ Abundance_all[, Plot := ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3),
 source('Functions.R')
 rerun_CWM = FALSE
 if (rerun_CWM == TRUE){
-source('Traits_to_CWM/Traits_to_CWM_Plants.R')
+#source('Traits_to_CWM/Traits_to_CWM_Plants.R')
 source('Traits_to_CWM/Traits_to_CWM_Bacterias.R') 
-source('Traits_to_CWM/Traits_to_CWM_Birds.R') #ok
-#  "Bi_Size" = log_body_len     ,
-#"Bi_Incub" = log_incub,
-#"Bi_TOffsprings" = log_offspring  ,
-#"Bi_AgeMax" = log_longevity,
-#"Bi_GenLength" = GenLength
-source('Traits_to_CWM/Traits_to_CWM_Bats.R') #ok
-source('Traits_to_CWM/Traits_to_CWM_Protists.R') #ok
-source('Traits_to_CWM/Traits_to_CWM_Arthropods.R') #ok
-#source('Traits_to_CWM/Traits_to_CWM_Butterflies_Moths.R') #ok
-#source('Traits_to_CWM/Traits_to_CWM_Roots.R')'
+source('Traits_to_CWM/Traits_to_CWM_Birds.R')
+source('Traits_to_CWM/Traits_to_CWM_Bats.R') 
+source('Traits_to_CWM/Traits_to_CWM_Protists.R') 
+source('Traits_to_CWM/Traits_to_CWM_Arthropods.R') 
+#source('Traits_to_CWM/Traits_to_CWM_Butterflies_Moths.R')
 }
 
 ### Reimport and merge all datasets ####
 for (weighted in c(TRUE, FALSE)){
-≈ = data.table()
+  data = data.table()
 for (group in c('birds', 'bats', 'plants', 'arthropods_below_omni_carni', 'arthropods_below_herb', 'arthropods_above_carni', 'arthropods_above_herb', 
                 'butterflies',  'coll', 'mites', 'microbes', 'protists_sec_cons', 'protists_bact','protists')){
 

@@ -9,7 +9,7 @@
 
 # Author: Margot Neyret - Please get in touch if you have questions or find some bugs!
 
-setwd(dir = '/Users/Margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Bexis_upload/')
+setwd(dir = 'Analysis/Bexis_upload/')
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
@@ -1822,7 +1822,7 @@ traitDataID = c('Bexis ID 27586','Bexis ID 27586','Bexis ID 27586' ,'Bexis ID 27
                 'Bexis ID 26587','Bexis ID 26587',
                 'Bexis ID 26587', 'Bexis ID 26587', 'Bexis ID 26587')
 
-traitRef = c('TRY- to do','TRY- to do','TRY- to do' ,'TRY- to do' ,'TRY- to do' ,'TRY- to do','TRY- to do','TRY- to do','TRY- to do', 'https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862','https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862',
+traitRef = c('TRY, doi: 10.1111/gcb.14904','TRY, doi: 10.1111/gcb.14904','TRY, doi: 10.1111/gcb.14904' ,'TRY, doi: 10.1111/gcb.14904' ,'TRY, doi: 10.1111/gcb.14904' ,'TRY, doi: 10.1111/gcb.14904','TRY, doi: 10.1111/gcb.14904','TRY, doi: 10.1111/gcb.14904','TRY, doi: 10.1111/gcb.14904', 'https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862','https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862',
              'https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862', 'https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862', 'https://doi.org/10.1111/oik.07874,  https://doi.org/10.1111/1365-2745.13862')
 
 names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('SLA_with_petiole','SLA_all','LDMC' ,'LeafN' ,'LeafP' ,'Mycorrhizal_inf_int','Height','Seed_mass','SSD', 'Fine_roots_diameter','Root_tissue_density',
