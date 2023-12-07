@@ -1,4 +1,11 @@
 Get the following datasets to run the analyses:
+• If running from scratch: all datasets below (trait matching, CWM etc)
+• If running only main analysis: CWM file and environmental data folder
+
+#### CWM file
+All_CWM_data.csv
+Dataset 31516 on Bexis: https://www.bexis.uni-jena.de/ddm/data/Showdata/31516 (not openly available yet at publication time)
+
 
 #### Environmental data folder:
 

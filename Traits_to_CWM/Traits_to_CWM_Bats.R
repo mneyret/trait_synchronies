@@ -1,3 +1,6 @@
+# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
+# Author: Margot Neyret - Please get in touch if you have questions.
+
 # This script takes as input the abundances and species-level traits of bat species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
@@ -81,7 +84,7 @@ myotis_species = gsub(' ', '_', german_bats[grepl('Myotis', german_bats)]) # The
 plecotus_species = gsub(' ', '_',german_bats[grepl('Plecotus', german_bats)]) # These are the german Plecotus
 
 # Trait subset to use
-all_traits = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", 'body.mass', "Duration", "Lifespan", "Number_offspring", 'Gen_length','logBody_mass')
+all_traits = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','logBody_mass')
 bat_traits2 = c('logBody_mass', 'Lifespan', 'Number_offspring')
 # For all aggregate species (nyctaloid, Myotis, Plecotus) we average trat data cross corresponding German species
 Nyctaloid_traits = Bat_traits[Species %in% nyctaloid_species, lapply(.SD, mean), .SDcols = all_traits][, Species := 'Nyctaloid']
@@ -98,7 +101,6 @@ traitUnits = c("mm","unitless","N/m3","kHz",'ms',"year","year-1",'day','g')
 traitDescription = c("Distance from elbow to wrist, used as a proxy for body size",
                      "Aspect ratio is defined as in Norberg & Rayner (1987) as B^2/S where B is the wingspan (measured from tip to tip of the fully opened wings) and S is the wing area (as the combined surface of wings, patagium (membrame included between the legs and the tail) and body, excluding the surface of the head protruding from the line of attachment of the wings to the body)",
                      "Wing loading is defined as in Norberg & Rayner (1987) as Mg/S where S is the wing area (as the combined surface of wings, patagium (membrame included between the legs and the tail) and body, excluding the surface of the head protruding from the line of attachment of the wings to the body), and Mg is the weight (mass times gravitational acceleration g)",
-                     
                      "Frequency of maximum energy,  obtained for the harmonic with maximum energy based on Monadjem et al., 2010",
                      "Duration of the echolocation call",
                      "Maximum observed lifespan",
@@ -120,10 +122,10 @@ traitRef = c("https://doi.org/10.1111/geb.13278, original data is from https://d
 
 names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) =  c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','body.mass')
 
-Bat_traits_melt = melt.data.table(Bat_traits_full[Species %in% Abundance_bats$Species, .SD, .SDcols = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','body.mass', 'Species')], variable.name = 'traitName', value.name = 'traitValue')
-Bat_traits_info = add_info(Bat_traits_melt, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
+#Bat_traits_melt = melt.data.table(Bat_traits_full[Species %in% Abundance_bats$Species, .SD, .SDcols = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','body.mass', 'Species')], variable.name = 'traitName', value.name = 'traitValue')
+#Bat_traits_info = add_info(Bat_traits_melt, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
 
-fwrite(Bat_traits_info, "Data/Temporary_data/Bat_traits.csv")
+#fwrite(Bat_traits_info, "Data/Temporary_data/Bat_traits.csv")
 
 # ************************** #
 #### 3. Species-level PCA ####
@@ -161,7 +163,6 @@ traitUnits = c("mm","unitless","N/m3","kHz",'ms',"year","year-1",'day','g (log-t
 traitDescription = c("Distance from elbow to wrist, used as a proxy for body size",
                      "Aspect ratio is defined as in Norberg & Rayner (1987) as B^2/S where B is the wingspan (measured from tip to tip of the fully opened wings) and S is the wing area (as the combined surface of wings, patagium (membrame included between the legs and the tail) and body, excluding the surface of the head protruding from the line of attachment of the wings to the body)",
                      "Wing loading is defined as in Norberg & Rayner (1987) as Mg/S where S is the wing area (as the combined surface of wings, patagium (membrame included between the legs and the tail) and body, excluding the surface of the head protruding from the line of attachment of the wings to the body), and Mg is the weight (mass times gravitational acceleration g)",
-                   
                      "Frequency of maximum energy,  obtained for the harmonic with maximum energy based on Monadjem et al., 2010",
                      "Duration of the echolocation call",
                      "Maximum observed lifespan",
@@ -185,16 +186,8 @@ names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnit
 
 CWM_CC_bats = add_info(CWM_CC_bats, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
 
-fwrite(CWM_CC_bats, "Data/CWM_data/CWM_bats.csv")
 
-#fwrite(CWM_bats[, list(
-#  "bat_mass"= logBody_mass,
-# # "bat_aspect"= aspect.ratio,
-#  "bat_lifespan"= lifespan,
-#  "bat_offspring"= Number_Offspring   ,
-#  Plot,
-#  Year
-#)], paste(cwm_path,"CWM_Bats.csv", sep = ''))
+fwrite(CWM_CC_bats, "Data/CWM_data/CWM_bats.csv")
 
 # ************************************** #
 #### 5. Non-weighted community traits ####
@@ -219,18 +212,10 @@ CWM_CC_bats_noweight = merge.data.table(melt.data.table(Bats_CWM_noweight, id.va
 CWM_CC_bats_noweight = add_info(CWM_CC_bats_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
 fwrite(CWM_CC_bats_noweight, "Data/CWM_data/CWM_bats_noweight.csv")
 
-# fwrite(CWM_bats_noweight[, list(
-#  "bat_mass"= logBody_mass,
-#  "bat_lifespan"= lifespan,
-#  "bat_offspring"= Number_Offspring   ,
-#  Plot,
-#  Year
-#)], paste(cwm_path, "CWM_bats_noweight.csv", sep = ''))
 
-
-#######################################
-# Check turnover accross LUI gradient #
-#######################################
+#######################
+# Turnover (Table S6) #
+#######################
 
 data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]

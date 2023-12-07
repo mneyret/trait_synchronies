@@ -1,3 +1,6 @@
+# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
+# Author: Margot Neyret - Please get in touch if you have questions.
+
 # This script takes as input the OTU abundances, bacteiral traits and community-level fungal trait information
 # and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
@@ -36,62 +39,21 @@ Bact_data[, c("Phylum", "Class", "Order", "Family", "Genus", "Species", "Sequenc
 
 ## Standardize taxonomy ##
 
-# Function to automatically try to standardize taxonomy
-#try_standardize_taxo <- function(taxo) {
-#  taxo_unique <- unique(taxo)
-# # print("a")
-#  gbif_taxo <- get_gbif_taxonomy(taxo_unique[taxo_unique != "" & !is.na(taxo_unique)])
-#  get_gbif_taxonomy(taxo_unique[taxo_unique != "" & !is.na(taxo_unique)])
-#  gbif_ScientifiNameSTD <- gbif_taxo$scientificNameStd
-# # print("b")
-#  names(gbif_ScientifiNameSTD) <- gbif_taxo$scientificName
-# # print("c")
-#  taxo_standardized <- gbif_ScientifiNameSTD[taxo]
-#  taxo_standardized[is.na(taxo_standardized)] <- taxo[is.na(taxo_standardized)]
-#  return(taxo_standardized)
-#}
-
 ## Standardize Abundance data -> takes some time, do only once! 
-# Some Orders are not precise enough so we have to remove them
- Bact_data[!(Order %in% c("bacterium enrichment culture clone Anammox_55",
-                          "bacterium enrichment culture clone SRAO_37",
-                          "bacterium enrichment culture clone Anammox_3")), Std_Order := lapply(.SD, try_standardize_taxo), .SDcols = c("Order")]
-# Bact_data[(Order %in% c("bacterium enrichment culture clone Anammox_55",
-#                          "bacterium enrichment culture clone SRAO_37",
-#                          "bacterium enrichment culture clone Anammox_3")), Std_Order := Order]
-# Bact_data[!(Genus %in% c("" ,"bacterium enrichment culture clone auto67_4W",
-#                         "bacterium enrichment culture clone auto10_4W",    "Estrella",
-#                         "bacterium enrichment culture clone auto112_4W",   "Diplosphaera",
-#                         "bacterium enrichment culture clone Anammox_55",   "bacterium enrichment culture clone B30(2011)",
-#                         "bacterium enrichment culture clone heteroC52_4W", "bacterium enrichment culture clone SRAO_37",
-#                         "Dechlorosoma",                                    "bacterium enrichment culture clone auto79_4W",
-#                         "bacterium enrichment culture clone auto73_4W",    "bacterium enrichment culture clone auto8_4W",
-#                         "bacterium enrichment culture clone Anammox_3",    "bacterium enrichment culture clone BBMC-4",
-#                         "bacterium enrichment culture clone heteroA49_4W", "bacterium enrichment culture clone JCA3",
-#                         "bacterium enrichment culture clone SRAO_22" )), Std_Genus := lapply(.SD, try_standardize_taxo), .SDcols = c("Genus")]
-# Bact_data[(Genus %in% c("" ,"bacterium enrichment culture clone auto67_4W",
-#                          "bacterium enrichment culture clone auto10_4W",    "Estrella",
-#                          "bacterium enrichment culture clone auto112_4W",   "Diplosphaera",
-#                          "bacterium enrichment culture clone Anammox_55",   "bacterium enrichment culture clone B30(2011)",
-#                          "bacterium enrichment culture clone heteroC52_4W", "bacterium enrichment culture clone SRAO_37",
-#                          "Dechlorosoma",                                    "bacterium enrichment culture clone auto79_4W",
-#                          "bacterium enrichment culture clone auto73_4W",    "bacterium enrichment culture clone auto8_4W",
-#                          "bacterium enrichment culture clone Anammox_3",    "bacterium enrichment culture clone BBMC-4",
-#                          "bacterium enrichment culture clone heteroA49_4W", "bacterium enrichment culture clone JCA3",
-#                          "bacterium enrichment culture clone SRAO_22" )), Std_Genus := Genus]
-# 
-# write_csv(Bact_data, "Data/Abundance_data/Bact_data_24866_25066.csv")
-Bact_data = fread("Data/Temporary_data/Bact_data_24866_25066.csv")
+
+Bact_data[Order != '', Std_Order := get_gbifid_(Order)[[1]]$order[1], by = Order ]
+Bact_data[Genus != '', Std_Genus := get_gbifid_(Genus)[[1]]$genus[1], by = Genus ]
+
+#write_csv(Bact_data, "Data/Abundance_data/Bact_data_24866__25066.csv")
+#Bact_data = fread("Data/Temporary_data/Bact_data_24866__25066.csv")
 
 ## Standardize Abundance data -> takes some time, do only once!
 
-#condensed_species_NCBI[, Std_Order := lapply(.SD, try_standardize_taxo), .SDcols = c("order")]
-#condensed_species_NCBI[!(genus %in% c('Agrobacterium', 'Nitrosovibrio','Pimelobacter', 'Methanosaeta')), Std_Genus:= lapply(.SD, try_standardize_taxo), .SDcols = c("genus")]
-#condensed_species_NCBI[(genus %in% c('Agrobacterium', 'Nitrosovibrio','Pimelobacter', 'Methanosaeta')), Std_Genus := genus]
+condensed_species_NCBI[order != '', Std_Order := get_gbifid_(order)[[1]]$order[1], by = order ]
+condensed_species_NCBI[genus != '', Std_Genus := get_gbifid_(genus)[[1]]$genus[1], by = genus ]
 
 #write_csv(condensed_species_NCBI, "Traits/Bacteria/Temp_data/Bact_traits_all.csv")
-
-Bact_traits_all = fread("Data/Temporary_data/Bact_traits_all.csv")
+#Bact_traits_all = fread("Data/Temporary_data/Bact_traits_all.csv")
 
 # Check how many  orders & genera present in the trait dataset?
 # Bact_data[Genus %in% Bact_traits_all[!is.na(motility),]$Std_Genus, sum(Read_count)]/Bact_data[, sum(Read_count)]

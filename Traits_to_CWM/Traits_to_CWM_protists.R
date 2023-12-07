@@ -1,3 +1,6 @@
+# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
+# Author: Margot Neyret - Please get in touch if you have questions.
+
 # This script takes as input the abundances and species-level traits of protist taxa
 # and outputs a CWM matrix averaged for all considered years.
 
@@ -112,7 +115,6 @@ Cercozoa_traits[, Naked := as.numeric(morpho_code == 'naked')]
 trait_names = c("morpho_code",
                 "nutrition_code","Size",  'Naked_amoeba')
 
-#### Aggregate abundance to Genus
 Cercozoa_abundance_format[, nutrition_code:=  dplyr::recode(nutrition, 
                                                             !!!c('NA' = NA,
                                                                  bacterivore = 'bacterial_cons',
@@ -123,7 +125,6 @@ Cercozoa_abundance_format[, nutrition_code:=  dplyr::recode(nutrition,
                                                                  omnivore = 'secondary_cons',
                                                                  not_plant_parasite = 'secondary_cons',
                                                                  autotroph = 'primary_prod'))]
-
 
 
 # Save species-matched trait data
@@ -148,7 +149,7 @@ fwrite(Melted_traits_info, "Data/Temporary_data/Cercozoa_traits.csv")
 #### 2. Species-level PCA ####
 # ************************** #
 
-# We're using only size 
+# We're using only size -> no PCA
 
 
 # ********************************** #
@@ -196,7 +197,6 @@ traitDataID = c("NA","Bexis ID 24468, 24426","Bexis ID 24468, 24426","Bexis ID 2
 traitRef = c("Provided by K. Dumack",'https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112','https://doi.org/10.1111/1755-0998.13112')
 
 names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('Size', 'nutrition_code_bacterial_cons','nutrition_code_primary_cons','nutrition_code_secondary_cons')
-
 
 CWM_CC_protists = add_info(CWM_CC_protists, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
 CWM_CC_protists_bact = add_info(CWM_CC_Protists_bact, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
@@ -257,16 +257,15 @@ fwrite(CWM_CC_protists_noweight, "Data/CWM_data/CWM_protists_noweight.csv")
 fwrite(CWM_CC_protists_bact_noweight, "Data/CWM_data/CWM_protists_bact_noweight.csv")
 fwrite(CWM_CC_protists_sec_cons_noweight, "Data/CWM_data/CWM_protists_sec_cons_noweight.csv")
 
-# ****************** #
-#### 5. Turnover ####
-# ***************** #
 
+# ***************************** #
+#### 5. Turnover (Table S6) #### 
+# ***************************** #
 data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
 min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
 max_lui_plots = data_lui[rank(LUI) > 140,Plot]
-
 
 comm.test_patho = dcast(Cercozoa_abundance_format[nutrition_code == 'primary_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
 comm.test_bact = dcast(Cercozoa_abundance_format[nutrition_code == 'bacterial_cons', list(value = sum(value, na.rm = T), Year = 'NA'), by = list(Plot, Genus)],  Plot~Genus, value.var = 'value', fill = 0)
@@ -283,11 +282,9 @@ beta.multi.abund(comm.test_patho)
 beta.multi.abund(comm.test_bact)
 beta.multi.abund(comm.test_sec)
 
-
 comm_patho_min_max = matrix(c(colSums(comm.test_patho[min_lui_plots,]),colSums(comm.test_patho[max_lui_plots,])), nrow = 2)
 comm_bact_min_max = matrix(c(colSums(comm.test_bact[min_lui_plots,]),colSums(comm.test_bact[max_lui_plots,])), nrow = 2)
 comm_sec_min_max = matrix(c(colSums(comm.test_sec[min_lui_plots,]),colSums(comm.test_sec[max_lui_plots,])), nrow = 2)
-
 
 beta.multi.abund(comm_patho_min_max)
 beta.multi.abund(comm_bact_min_max)

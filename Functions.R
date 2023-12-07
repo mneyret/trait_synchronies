@@ -40,7 +40,82 @@ my_cwm <- function(Traits0, Abundances0, trait_names, trait_taxo, abundance_taxo
   return(data.table(cwm))
 }
 
+load_env_data = function(){
+  data_lui_raw <- fread("Data/Environment_function_data/LUI_standardized_global.txt") 
+  
+  data_lui = data_lui_raw[Year > 2007 & Year <= 2018, list(LUI = mean(LUI),
+                                                           Mowing = mean(M_STD),
+                                                           Fertil = mean(F_STD),
+                                                           Grazing = mean(G_STD)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
+  data_lui[, c('Fertilisation', 'Disturbance') := list( Fertil, sqrt(Mowing/mean(Mowing) + Grazing/mean(Grazing)))]
+  
+  env_data <- data.table(read_excel("Data/Environment_function_data/31018_5_Dataset/31018_5_data.xslx", sheet = 1))
+  env_data[, Plot := EP_PlotID]
+  env_data_lui = merge.data.table(data_lui, env_data[, c('Plot', 'LII',   "Soil.pH", "Soil.depth", "Soil.clay.content" , "Soil.sand.content", "TWI" , 'Grassland.1000')], by = 'Plot')
+  
+  Temp = fread("Data/Environment_function_data/Ta_200_2008_2018_3a7aa69b37636254/plots.csv")
+  Precip = fread("Data/Environment_function_data/precipitation_radolan_95a5c5f55a798133/plots.csv")
+  Climate_data <- merge.data.table(Temp[, plotID := gsub('f', '', plotID)], Precip, by = c('plotID', 'datetime'))
+  Climate_data[, Plot := plotID]
+  Climate <- Climate_data[datetime>=2008 & datetime <= 2018, list("Mean_Temp" = mean(Ta_200, na.rm = T), "Mean_precip" = mean(precipitation_radolan, na.rm = T)), by = list("Plot" = plotID)]
+  
+  # Merge all environmental data
+  env_data_lui = merge.data.table(env_data_lui, Climate, by = 'Plot')
+  env_data_lui$Region = substr(env_data_lui$Plot, 1, 1)
+  
+  # Selection of environmental variables: removal of highly correlated variables (Soil.depth, Soil.sand.content, Mean_precip)
+  env_var = c("Soil.pH", "Soil.clay.content", "TWI", 'Mean_Temp')
+  env_data_lui[, (c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')) := lapply(.SD, function(x){as.numeric(scale(x))}), .SDcols = c(env_var, 'LUI', 'Mowing', 'Fertil', 'Grazing')]
+  return(list(env_data, env_data_lui, env_var, data_lui_raw))}
 
+
+load_eco_functions = function(){
+  # Load datasets
+  additional_info <- fread('Data/Environment_function_data/27087_21_Dataset/synthesis_grassland_function_metadata_ID27087.csv')
+  additional_info <- additional_info[, .(ColumnName, AggregatedColumnName, codedYear)]
+  setnames(additional_info, old = c("ColumnName", "codedYear"), new = c("variable", "Year"))
+  original_synth_func <- fread('Data/Environment_function_data/27087_21_Dataset/27087_21_data.csv')
+  
+  # get function-year combinations as columns
+  # make format even longer to obtain a column "Year" and a column "function"
+  synth_func <- melt.data.table(original_synth_func, id.vars = c("Plot", "Plotn", "Explo", "Year"))
+  sum(is.na(synth_func$value))
+  # delete all missing function-year combinations (without excluding NA values)
+  synth_func <- synth_func[!value %in% "NM"]
+  sum(is.na(synth_func$value))
+  
+  synth_func <- merge(synth_func, additional_info, by = c("variable", "Year"))
+  synth_func <- synth_func[, .(AggregatedColumnName, Plot, Plotn, Explo, value)]
+  synth_func <-dcast.data.table(synth_func, Plot + Plotn + Explo ~ AggregatedColumnName, value.var = "value")
+  synth_func[, colnames(synth_func)[4:87] := lapply(.SD, as.numeric), .SDcols = colnames(synth_func)[4:87]]
+  setkey(synth_func, 'Plot')
+  
+  ## Also the respiration dataset
+  Resp = fread('Data/Environment_function_data/26908_4_Dataset/26908_4_data.csv')
+  Resp[, Plot := ifelse(nchar(EP_Plotid) == 5, EP_Plotid, paste(substr(EP_Plotid, 1, 3), '0', substr(EP_Plotid, 4, 4), sep = ''))]
+  
+  EF_clean = synth_func[, list(Plot = ifelse(nchar(Plot) == 5, Plot, paste(substr(Plot, 1, 3), 0, substr(Plot, 4, 4),sep = '')),
+                               Dung.decomposition = as.numeric(scale(dung.removal)),
+                               Litter.decomposition =  as.numeric(scale(Litter.decomposition)),
+                               Root.decomposition=  as.numeric(scale(Root.decomposition)),
+                               Biomass.production = as.numeric(scale(Biomass)),
+                               'Urease'= as.numeric(scale(sqrt(Urease))),
+                               'DEA'= as.numeric(scale(sqrt(DEA))),
+                               'Potential.nitrification'= as.numeric(scale(sqrt(Potential.nitrification2011)))+
+                                 as.numeric(scale(Potential.nitrification2014)),
+                               'nifH'= as.numeric(scale(sqrt(nifH))),
+                               'amoA_AOB'= as.numeric(scale(sqrt(amoA_AOB.2011 + amoA_AOB.2016))),
+                               'amoA_AOA'= as.numeric(scale(sqrt(amoA_AOA.2011 + amoA_AOA.2016))),
+                               'nxrA_NS'=  as.numeric(scale(sqrt(nxrA_NS))),
+                               'n16S_NB'=  as.numeric(scale(sqrt(`16S_NB`))),
+                               'beta_Glucosidase' = as.numeric(scale(sqrt(beta_Glucosidase))),
+                               'N_Acetyl_beta_Glucosaminidase' = as.numeric(scale(sqrt(N_Acetyl_beta_Glucosaminidase))),
+                               'Xylosidase' = as.numeric(scale(sqrt(Xylosidase))),
+                               'Phosphatase' = as.numeric(scale(log(Phosphatase)))
+  )
+  ]
+  EF_clean = merge.data.table(EF_clean, Resp[!grepl('W', Plot),  list(Respiration = mean(Rs)), by = Plot])
+  return(EF_clean)}
 # Function to check how much % of the individuals (or cover) has trait data available
 
 check_coverage <- function(Traits0, Abundances0, trait_names, trait_taxo, abundance_taxo) {
@@ -215,6 +290,7 @@ calculate_coeff_new = function(DATA){
   res$ci_high = round(parameters$CI_high[2], 2)
   res$ci =  paste(res$ci_low,res$ci_high, sep = ' - ')
   res$n =  nobs(lui_mod)
+  res$r2 =  rsq(lui_mod)
   return(res)
 }
 
@@ -249,7 +325,7 @@ axes_direction_pca <- function(pca, cwm, traitnames, conditions) {
 
 ## Function to print the large table with individual trait responses
 print_table = function(Hypo_table){
-  Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", 'Est','CI','Padj', 'Fit_exp')]
+  Table_use = Hypo_table[,.SD, .SDcols = c("Trait_short", "Expected_direction", 'Est','CI', 'r2', 'Padj', 'Fit_exp')]
   H_kable <- kable_paper(kbl(Table_use, escape = FALSE))
   H_kable <- column_spec(H_kable, which(colnames(Table_use) == "Est"),
                          background = rgb(pal.fnc(scale01(Hypo_table$Est)), maxColorValue=255),
@@ -432,4 +508,6 @@ autowrite_SEM_full = function(model_raw, trophic_levels = Trophic_levels, LUI = 
   whole_model = paste(c(unlist(model_lines), unlist(overall_effects)), collapse = ' \n ')
   return(whole_model)
 }
+
+
 

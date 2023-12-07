@@ -1,3 +1,6 @@
+# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
+# Author: Margot Neyret - Please get in touch if you have questions.
+
 # This script takes as input the abundances and species-level traits of bird species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
@@ -299,7 +302,7 @@ traitDescription = c("Maximum wing length, measured from bow to tip (typically f
                      'Maximum number of broods observed per species so far',
                      'Maximum number of offspring per year (calculated manually as number of broods * clutch size)',
                      'Generation length')
-traitDataID = c("Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","Bexis ID 20067, x","","Bexis ID 20067, x",'', '')
+traitDataID = c("Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","Bexis ID 20067, 31368","","Bexis ID 20067, 31368",'', '')
 
 traitRef = c("https://www.mdpi.com/2306-5729/2/2/12/htm; Svensson, L. Identification Guide to European Passerines; British Trust for Ornithology: Stockholm, Sweden, 1992.;
              von Blotzheim, U.N.G.; Bauer, K.M. Handbuch Der V?gel Mitteleuropas; Aula: Wiesbaden, Germany, 1998.","https://www.mdpi.com/2306-5729/2/2/12/htm","https://www.mdpi.com/2306-5729/2/2/12/htm",
@@ -351,11 +354,9 @@ CWM_CC_birds_insect_noweight = add_info(CWM_CC_birds_insect_noweight, traitRef, 
 fwrite(CWM_CC_birds_insect_noweight, "Data/CWM_data/CWM_birds_noweight.csv")
 
 
-# ************************************ #
-#### Turnover accross LUI gradient ####
-# ************************************ #
-
-# A more direct way to check for turnover
+# ************************* #
+#### Turnover (Table S6) #### 
+# ************************* #
 
 data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]

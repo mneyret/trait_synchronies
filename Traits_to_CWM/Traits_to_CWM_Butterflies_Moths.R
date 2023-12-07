@@ -1,18 +1,24 @@
+# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
+# Author: Margot Neyret - Please get in touch if you have questions.
+
 # This script takes as input the abundances and species-level traits of moth and butterflies species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
-
-#!!! Gbif version: Pre-Nov 2022 (taxonomy matching has been affected by the following update)
+#!!! Gbif version: Pre-Nov 2022 (taxonomy matching has been affected by the following update - using trait matched prior to this version)
+# We provide the steps used to match all traits for reference, but the analyses were run on the trait dataset loaded line 300
 
 # ******************* #
 #### 1. Load data ####
 # ****************** #
+
+
 set.seed(101)
 Abundances_lepi = Abundance_all[Group_broad == 'Lepidoptera',]
 Abundances_lepi[, scientific_name_gbif := get_gbif_taxonomy(Species)$scientificName, by = Species] # Select only lepidoptera and homogenise taxonomy
 Abundances_lepi[is.na(scientific_name_gbif), scientific_name_gbif := gsub('_', ' ', Species)]
 
-### Traits from multipe databases
+### Traits from multiple databases
+
 # Non-exploratories databases
 butterflies_UKtraits = fread("Data/Trait_data/UK_butterflies/data/ecological_traits_format.csv") # https://catalogue.ceh.ac.uk/documents/5b5a13b6-2304-47e3-9c9d-35237d1232c6
 butterflies_EUMaghreb = data.table(read_excel("Data/Trait_data/European_Maghreb_Butterfly_Trait_data_v1.2/European_Maghreb_Butterfly_Trait_data_v1.2.xlsx", skip = 1)) #https://butterflytraits.github.io/European-Butterfly-Traits/index.html
@@ -28,10 +34,9 @@ moths_traits_morpho = dcast.data.table(moths_traits_morpho_std, scientificName ~
 moths_traits_lifeH = fread("Data/Trait_data/21228_2_Dataset/21228_2_data.csv") #https://www.bexis.uni-jena.de/ddm/data/Showdata/21228
 moths_traits = merge.data.table(moths_traits_morpho, moths_traits_lifeH, by = 'species', all = T)
 
-#Homogenise taxonomy
+# Homogenise taxonomy
 moths_traits[, scientific_name_gbif := get_gbif_taxonomy(species)$scientificName, by = species]
 moths_traits[is.na(scientific_name_gbif),scientific_name_gbif := gsub('_', ' ', species)]
-
 
 butterflies_UKtraits[, scientific_name_gbif := get_gbif_taxonomy(scientific_name)$scientificName, by = scientific_name][is.na(scientific_name_gbif) , scientific_name_gbif:= scientific_name]
 butterflies_EUMaghreb[, scientific_name_gbif := get_gbif_taxonomy(`Taxa name`)$scientificName, by = `Taxa name`][is.na(scientific_name_gbif) , scientific_name_gbif:= `Taxa name`]
@@ -42,13 +47,14 @@ butterflies_Boerschig[, scientific_name_gbif := get_gbif_taxonomy(Species)$scien
 #### 2. Merge traits across databases ####
 # ************************************** #
 
-# The different databases code each trait differently. We recode the traits in a semi-continuous scale common to all databases.
+# Many traits are classified slightly differently depending on the database, with sometimes diverging data. 
+# The following sections aim at combining the data from all different databases
 
 ### Voltinism
 
-# butterflies_UKtraits: 1, more or partial
-# butterflies_EUMaghreb: number of generations per year, min and max
-# moths_traits: semivoltine (i.e., all individuals must undergo two periods of hiber- nation to complete their development), (2) strictly univoltine, and (3) multivoltine
+# butterflies_UKtraits: coded as 1, more or partial
+# butterflies_EUMaghreb: coded as  number of generations per year, min and max
+# moths_traits: coded as semivoltine (i.e., all individuals must undergo two periods of hiber- nation to complete their development), (2) strictly univoltine, and (3) multivoltine
 
 # --> code as 0.5 if semivoltine, 1 if strictly uni, 1.5 if 1 or more, 2 if more
 Test_voltinism = merge(merge(butterflies_UKtraits[,.SD, .SDcols = c('obligate_univoltine', 'partial_generation', 'obligate_multivoltine', 'scientific_name_gbif'),],
@@ -176,7 +182,7 @@ all_data[scientific_name_gbif %in% wrong_species & traitName == 'forewing_maximu
 plot(Test_wing_weight$forewing_maximum, Test_wing_weight$wing_length )
 
 # We impute wing size data as we can assume all dimensions to be very well correlated
-#miced_size = Test_wing_weight#data.table(mice::complete(mice(Test_wing_weight)))
+# miced_size = Test_wing_weight#data.table(mice::complete(mice(Test_wing_weight)))
 miced_size = data.table(mice::complete(mice(Test_wing_weight)))
 
 # Check that imputed size distribution
@@ -292,12 +298,13 @@ Merged_traits[scientific_name_gbif == 'Aphantopus hyperantus', Generalism_use :=
 Merged_traits[, logSize := log(forewing_maximum)]
 Merged_traits[, Eggs.log := log(B_Egg_number)]
 Merged_traits[, logFlight := log(Flight_max)]
-
 Merged_traits = Merged_traits[!is.na(scientific_name_gbif), lapply(.SD, mean, na.rm = T), by = scientific_name_gbif]
 
 #Merged_traits = fwrite('Code/Data/Temporary_data/Lepidoptera_traits_matched.csv')
 
-Merged_traits = fread('Code/Data/Temporary_data/Lepidoptera_traits_matched.csv')
+ ###########@ Loading traits matched pre-nov 2022 ###########
+
+Merged_traits = fread('Data/Temporary_data/Lepidoptera_traits_matched.csv')
 
 Merged_traits[, logSize := Size.log]
 Merged_traits[, Wintering_stage := wintering_stage]
@@ -416,11 +423,12 @@ CWM_CC_butterflies_noweight = add_info(CWM_CC_butterflies_noweight, traitRef, tr
 
 fwrite(CWM_CC_butterflies_noweight, "Data/CWM_data/CWM_butterflies_noweight.csv")
 
-#######################################
-# Check turnover accross LUI gradient #
-#######################################
 
-data_lui <- fread("Environment/LUI_input_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
+# ***************************** #
+#### Turnover (Table S6) #### 
+# ***************************** #
+
+data_lui <- fread("Data/Environment_function_data/LUI_standardized_global.txt") # from https://www.bexis.uni-jena.de/lui/LUICalculation/index; new components, standardised, global, all regions, all years
 data_lui = data_lui[Year > 2007 & Year <= 2018, list(LUI = mean(LUI)), by = list(Plot = ifelse(nchar(PLOTID) == 5,PLOTID, paste(substr(PLOTID, 1, 3), '0', substr(PLOTID, 4, 4), sep = '')))]
 min_lui_plots = data_lui[rank(LUI) <= 10,Plot]
 max_lui_plots = data_lui[rank(LUI) > 140,Plot]
@@ -433,4 +441,3 @@ beta.multi.abund(comm.test)
 
 comm_min_max = matrix(c(colSums(comm.test[min_lui_plots,]),colSums(comm.test[max_lui_plots,])), nrow = 2)
 beta.multi.abund(comm_min_max)
-
