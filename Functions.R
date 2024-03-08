@@ -345,10 +345,10 @@ print_table = function(Hypo_table){
 # Function to auto run PCAs
 run_group_pca = function(cwm, traits, trait_direction, direction = '>0', plot = TRUE, env_corr, Labels = NA, annot = NA, naxes = 2){
   
-  data = data.frame(cwm[, .SD, .SDcols = c('LUI', 'Disturbance', 'Fertilisation', traits)])
+  data = data.frame(cwm[, .SD, .SDcols = c('LUI', traits)])
   rownames(data) = cwm$Plot
   data = data[complete.cases(data),]
-  pca_stand = PCA(data, graph=FALSE, quanti.sup = 1:3)
+  pca_stand = PCA(data, graph=FALSE, quanti.sup = 1)
   
   # Store the direction of the expected fast_slow axis (1 is left to right, -1 is right to left)
   direction_axis = numeric()
@@ -401,14 +401,15 @@ run_group_pca = function(cwm, traits, trait_direction, direction = '>0', plot = 
   rownames(pca_to_plot$var$coord) = rownames(pca_to_plot$var$cor) = rownames(pca_to_plot$var$cos2) = Labels
   
   if (env_corr == TRUE){
-    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'darkred', col.var = 'grey30', 
-                           labelsize = 3, repel = T)
+    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'brown3', col.var = 'grey30', 
+                           labelsize = 4, repel = T)
   }
   if (env_corr == FALSE){
-    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'darkred', col.var = 'grey30', habillage = factor(substr(rownames(pca_to_plot$ind$coord), 1, 1)), 
-                           labelsize = 3, repel = T) +
+    plot_pca_12 = fviz_pca(pca_to_plot, title = '', geom = 'point', geom.var = c("arrow", 'text'), col.quanti.sup = 'brown3', col.var = 'grey30', habillage = factor(substr(rownames(pca_to_plot$ind$coord), 1, 1)), 
+                           labelsize = 5, repel = T) + 
       scale_shape_discrete( breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')+
-      scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')
+      scale_color_viridis(discrete = TRUE, begin = 0.3, breaks = c('A', 'H', 'S'), labels = c('South', 'Central', 'North'), name = 'Region')+
+      theme(legend.position = 'none') 
     
   }
   res = list(PCA = pca_stand, plot12 = plot_pca_12, criteria = keep_criteria, direction = direction_axis)

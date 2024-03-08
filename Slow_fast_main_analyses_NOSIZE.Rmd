@@ -385,7 +385,7 @@ Axis 1 is slow -> fast
 pca_plants_all = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, all_plant_traits ,Labels =labels_plants, 'plants_SLA_all')
 pca_plants_all$plot12
 
-ggsave(plot = pca_plants_all$plot12,file = paste('Results/NOSIZE/Plant_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_plants_all$plot12,file = paste('Results/NOSIZE/Plant_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 
 ```
 
@@ -395,7 +395,7 @@ Axis 1 is slow -> fast
 pca_mic = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Bact_fungi, 'bact_fungi_pathogens',  Labels = labels_Bact_fungi)
 pca_mic$plot12
 
-ggsave(plot = pca_mic$plot12, file = paste('Results/NOSIZE/bact_fungi_OCm_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_mic$plot12, file = paste('Results/NOSIZE/bact_fungi_OCm_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 ```
 
 ## Arthropods herbivores (below- and above-ground, incl. butterflies)
@@ -406,7 +406,7 @@ In all cases axis 1 is slow -> fast, butterflies size is a bit off due to its me
 
 pca_arthro_herb = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_above_herb, 'arthropods_above_herb_Dispersal_ability', Labels = labels_arthro_herb)
 pca_arthro_herb$plot12
-ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/NOSIZE/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/NOSIZE/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 # Check which axis is the slow-fast: it is the one where dispersal and size are anticorrelated
 if (prod(pca_arthro_herb$PCA$var$coord[c( 'arthropods_above_herb_Feeding_generalism'), 'Dim.1']) < 0) {axis_arthro_herb = 1}
 if (prod(pca_arthro_herb$PCA$var$coord[c( 'arthropods_above_herb_Feeding_generalism'), 'Dim.2']) < 0) {axis_arthro_herb = 2}
@@ -418,14 +418,14 @@ pca_arthro_herb_below$plot12  = pca_arthro_herb_below$plot12 + ylim(c(-5, 4))
 pca_arthro_herb_below$criteria
   
 ggsave(plot = pca_arthro_herb_below$plot12,file =
-         paste('Results/NOSIZE/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
+         paste('Results/NOSIZE/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 
 # Butterflies
 pca_but = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, Labels = labels_but, traits_Butterflies, 'butterflies_logFlight')
 pca_but$plot12
 pca_but$criteria
 
-ggsave(plot = pca_but$plot12, file = paste('Results/NOSIZE/Butterflies_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_but$plot12, file = paste('Results/NOSIZE/Butterflies_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 ```
 
 ### Arthropods, predators
@@ -441,7 +441,7 @@ pca_birds_all= run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Bi
 pca_birds_all$plot12
 pca_birds_all$criteria
 
-ggsave(plot = pca_birds_all$plot12,file =  paste('Results/NOSIZE/Birds_i_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_birds_all$plot12,file =  paste('Results/NOSIZE/Birds_i_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 ```
 
 ## Mites & collembola
@@ -452,7 +452,7 @@ pca_mites_all$plot12
 pca_mites_all$plot13
 
 ggsave(plot = pca_mites_all$plot12,file = 
-         paste('Results/NOSIZE/Mites_com_pca.pdf', sep = ''), width = 6, height = 6)
+         paste('Results/NOSIZE/Mites_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 ```
 
 Collembola: axis 1 = slow -> fast axis
@@ -463,7 +463,7 @@ pca_coll_all$plot12
 pca_coll_all$plot13
 pca_coll_all$criteria
 
-ggsave(plot = pca_coll_all$plot12, file = paste('Results/NOSIZE/Coll_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_coll_all$plot12, file = paste('Results/NOSIZE/Coll_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 
 ```
 
@@ -475,7 +475,7 @@ pca_bats_all$plot12
 pca_bats_all$plot13
 pca_bats_all$criteria
 
-ggsave(plot = pca_bats_all$plot12,file = paste('Results/NOSIZE/Bats_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_bats_all$plot12,file = paste('Results/NOSIZE/Bats_com_pca.pdf', sep = ''), width = 4.5, height = 4.5)
 ```
 
 # Assemble data for further analysis

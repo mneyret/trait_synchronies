@@ -43,7 +43,7 @@ library(rsq) # v 2.5
 library(car) # v 3.1-1  
 
 # Options and seeds
-env_corr <- FALSE 
+env_corr = FALSE 
 weight = TRUE
 
 seed = 101
@@ -142,7 +142,7 @@ all_cwm_lui = merge.data.table(all_cwm_agg, env_data_lui)
 all_cwm_lui[, traitValue := scale(traitValue), by = c('Group','traitName2')]
 all_cwm_lui = all_cwm_lui[order(Group, traitName2, Plot),]
 
-# Fill gaps with environmental covariates (except LUI)
+# Fill gaps with environmental covariates (except LUI). This will only be used for environmental correction, the iputed values will be turned back to NAs at the next step
 mice_long = function(traitname, covar, data){
   print(nrow(data))
   all_var_cast = dcast.data.table(data, ... ~ traitName2, value.var = 'traitValue', .SDcols = c(traitname, covar, 'Plot'))
@@ -151,7 +151,6 @@ mice_long = function(traitname, covar, data){
     print(nrow(all_var_melt))
   return(all_var_melt[order(traitName2, Plot), traitValue])
 }
-
 all_cwm_lui[, traitValue2 := mice_long(traitName2, env_var, .SD), .SDcols = c('traitName2', 'traitValue', env_var, 'Plot'), by = Group]
 
 # Correct for environmental covariates
@@ -256,13 +255,13 @@ traits_Bact_fungi = c("bact_fungi_logVolume"   ,"bact_fungi_Genome_size"  ,
 labels_Bact_fungi =  c("Cell volume (bacteria)"     ,   "Genome size (bacteria)"  ,   "Oligotrophic:copiotrophic ratio (bacteria)" ,   "Fungi:bacteria ratio" ,  "Proportion plant pathogen (fungi)" )
 
 traits_Arthropods_above_herb = c("arthropods_above_herb_Dispersal_ability", "arthropods_above_herb_logBody_Size" ,       "arthropods_above_herb_Feeding_generalism",    "arthropods_above_herb_Generations")
-labels_arthro_herb =  c("Dispersal"     ,        "Body size" ,       "Generalism"  ,        "Gen. per year"  )
+labels_arthro_herb =  c("Dispersal"     ,        "Body size" ,       "Feeding generalism"  ,        "Voltinism"  )
 
 traits_Arthropods_below_herb = c("arthropods_below_herb_Dispersal_ability", "arthropods_below_herb_logBody_Size" ,       "arthropods_below_herb_Feeding_generalism")
-labels_arthro_below_herb =  c("Dispersal", "Body size" , 'Generalism')
+labels_arthro_below_herb =  c("Dispersal", "Body size" , 'Feeding generalism')
 
 traits_Butterflies = c("butterflies_Generalism_use", "butterflies_logSize",      "butterflies_Voltinism_use", "butterflies_Wintering_stage", "butterflies_logFlight")
-labels_but =  c("Generalism",  "Size" , "Voltinism" , "Hibernation stage",  "Flight period"     )
+labels_but =  c("Feeding generalism",  "Wing size" , "Voltinism" , "Hibernation stage",  "Flight period"     )
 
 traits_Arthropods_above_omni_carni = c('arthropods_above_carni_Dispersal_ability', 'arthropods_above_carni_logBody_Size')
 labels_arthro_omni_carni = c('Dispersal', 'Body size')
@@ -274,10 +273,10 @@ traits_Birds_insect = c("birds_logBody_Mass",        "birds_logIncub_time"    , 
 birds_labels = c('Body mass', 'Incubation time', 'Brood max',  'Generation time')
 
 traits_Mites_all = c( "mites_Habitat_spec",  "mites_Repro_sex" ,  "mites_logMass"   , "mites_Feeding_spec","mites_DaystoAdult"     )
-mites_labels = c('Habitat specialisation', 'Sexual repro', 'Body mass', 'Feeding specialisation', 'Days to adult')
+mites_labels = c('Habitat specialisation', 'Sexual repro', 'Body mass', 'Feeding specialisation', 'Days to maturity')
 
 traits_Coll_all = c(  "coll_logSize",  "coll_Depth_preference", "coll_Gen_per_year"   ,    "coll_Repro_sex" )
-col_labels = c('Body size', 'Depth preference', 'Generations per year', 'Sexual reproduction')
+col_labels = c('Body size', 'Depth preference', 'Voltinism', 'Sexual reproduction')
 
 traits_Bats =c("bats_logBody_mass" ,     "bats_Lifespan"   ,      "bats_Number_offspring")
 bats_labels = c('Body mass', 'Lifespan', 'Offspring')
@@ -304,7 +303,7 @@ rownames(pca_all$var$contrib) =new_col[rownames(pca_all$var$contrib)]
 
 slow_fast_expecations = Hypothesis_table$Expected_direction
 names(slow_fast_expecations) = Hypothesis_table$Trait_short
-pca_all_traits = fviz_pca(pca_all, repel = T, geom.ind = 'point', axes = c(1,2),  col.quanti.sup = 'darkred', col.var = slow_fast_expecations[colnames(cwm_cast)[-c(1,2)]],
+pca_all_traits = fviz_pca(pca_all, repel = T, alpha.var=0.4,pointsize = 1,geom.ind = 'point', axes = c(1,2),  col.quanti.sup = 'darkred', col.var = slow_fast_expecations[colnames(cwm_cast)[-c(1,2)]],
                           palette = c('#3e4989', '#35b779'), title = '') + theme(legend.position = 'none')
 
 
@@ -326,9 +325,9 @@ recode_key = c(labels_plants, #labels_Bact_fungi,
                      labels_arthro_omni_carni, labels_arthro_below_herb, 
                      labels_arthro_below_omni_carni, bats_labels,
                      birds_labels, 
-               "Body size"    ,        "Depth\npreference"   ,  "Generations\nper year", "Sexual\nreproduction" ,#col_labels, 
+               "Body size"    ,        "Depth\npreference"   ,  "Voltinism", "Sexual\nreproduction" ,#col_labels, 
                mites_labels,
-               '% Primary\nconsumers', 'Size', 'Size')
+               '% Primary\nconsumers', 'Cell size', 'Cell size')
 
 names(recode_key)  <- c(all_plant_traits, traits_Bact_fungi, traits_Arthropods_above_herb, traits_Butterflies, traits_Arthropods_above_omni_carni,traits_Arthropods_below_herb, 
 traits_Arthropods_below_omni_carni, traits_Bats, 
@@ -387,7 +386,7 @@ Axis 1 is slow -> fast
 pca_plants_all = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, all_plant_traits ,Labels =labels_plants, 'plants_SLA_all')
 pca_plants_all$plot12
 
-ggsave(plot = pca_plants_all$plot12,file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Plant_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_plants_all$plot12,file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Plant_com_pca.pdf', sep = ''), width = 4, height = 4)
 
 ```
 
@@ -397,7 +396,7 @@ Axis 1 is slow -> fast
 pca_mic = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Bact_fungi, 'bact_fungi_pathogens',  Labels = labels_Bact_fungi)
 pca_mic$plot12
 
-ggsave(plot = pca_mic$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/bact_fungi_OCm_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_mic$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/bact_fungi_OCm_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 
 ## Arthropods herbivores (below- and above-ground, incl. butterflies)
@@ -409,7 +408,7 @@ For unweighted abundance, axis 2 is slow-fast for above-ground herbivores
 
 pca_arthro_herb = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Arthropods_above_herb, 'arthropods_above_herb_Dispersal_ability', Labels = labels_arthro_herb)
 pca_arthro_herb$plot12
-ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_arthro_herb$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_herb_AG_com_pca.pdf', sep = ''), width = 4, height = 4)
 # Check which axis is the slow-fast: it is the one where dispersal and size are anticorrelated
 if (prod(pca_arthro_herb$PCA$var$coord[c('arthropods_above_herb_logBody_Size', 'arthropods_above_herb_Feeding_generalism'), 'Dim.1']) < 0) {axis_arthro_herb = 1}
 if (prod(pca_arthro_herb$PCA$var$coord[c('arthropods_above_herb_logBody_Size', 'arthropods_above_herb_Feeding_generalism'), 'Dim.2']) < 0) {axis_arthro_herb = 2}
@@ -421,14 +420,14 @@ pca_arthro_herb_below$plot12  = pca_arthro_herb_below$plot12 + ylim(c(-5, 4))
 pca_arthro_herb_below$criteria
   
 ggsave(plot = pca_arthro_herb_below$plot12,file =
-         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
+         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_herb_BG_com_pca.pdf', sep = ''), width = 4, height = 4)
 
 # Butterflies
 pca_but = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, Labels = labels_but, traits_Butterflies, 'butterflies_logFlight')
 pca_but$plot12
 pca_but$criteria
 
-ggsave(plot = pca_but$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Butterflies_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_but$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Butterflies_com_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 The slow-fast axis for above-ground herbivores is axis `r axis_arthro_herb`
 
@@ -443,7 +442,7 @@ pca_arthro_pred$plot12
 
 test = PCA(all_cwm_not_imputed[, ..traits_Arthropods_above_omni_carni])
 
-ggsave(plot = pca_arthro_pred$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_oc_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_arthro_pred$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_oc_com_pca.pdf', sep = ''), width = 4, height = 4)
 
 # Check which axis is the slow-fast: it is the one where dispersal and size are anticorrelated
 if (prod(pca_arthro_pred$PCA$var$coord[, 'Dim.1']) < 0) {axis_arthro_pred = 1}
@@ -455,7 +454,7 @@ pca_arthro_pred_below = run_group_pca(env_corr = env_corr, all_cwm_not_imputed, 
 pca_arthro_pred_below$plot12
 
 ggsave(plot = pca_arthro_pred_below$plot12,file =
-         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_oc_BG_com_pca.pdf', sep = ''), width = 6, height = 6)
+         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Arthro_oc_BG_com_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 The slow-fast axis for above-ground predators is axis `r axis_arthro_pred`
 
@@ -467,7 +466,7 @@ pca_birds_all= run_group_pca(env_corr = env_corr, all_cwm_not_imputed, traits_Bi
 pca_birds_all$plot12
 pca_birds_all$criteria
 
-ggsave(plot = pca_birds_all$plot12,file =  paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Birds_i_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_birds_all$plot12,file =  paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Birds_i_com_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 
 ## Mites & collembola
@@ -479,7 +478,7 @@ pca_mites_all$plot12
 pca_mites_all$plot13
 
 ggsave(plot = pca_mites_all$plot12,file = 
-         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Mites_com_pca.pdf', sep = ''), width = 6, height = 6)
+         paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Mites_com_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 
 Collembola: axis 1 = slow -> fast axis
@@ -490,7 +489,7 @@ pca_coll_all$plot12
 pca_coll_all$plot13
 pca_coll_all$criteria
 
-ggsave(plot = pca_coll_all$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Coll_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_coll_all$plot12, file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Coll_com_pca.pdf', sep = ''), width = 4, height = 4)
 
 ```
 
@@ -502,7 +501,7 @@ pca_bats_all$plot12
 pca_bats_all$plot13
 pca_bats_all$criteria
 
-ggsave(plot = pca_bats_all$plot12,file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Bats_com_pca.pdf', sep = ''), width = 6, height = 6)
+ggsave(plot = pca_bats_all$plot12,file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/Bats_com_pca.pdf', sep = ''), width = 4, height = 4)
 ```
 
 # Assemble data for further analysis
@@ -1206,7 +1205,10 @@ layout_fun = matrix(c(c(2, 1, 0),
                borders = F,
                node.width = 3)
 
- png(file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions.png', sep = ''), width = 600, #height = 400
+ 
+ lavInspect(mod_function, "rsquare")
+ 
+ png(file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions.png', sep = ''), width = 1000 #height = 400
      )
  plot(p)
  dev.off()
@@ -1235,7 +1237,7 @@ layout_fun = matrix(c(c(2, 1, 0),
                borders = F,
                node.width = 3)
   
- png(file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions_all_traits.png', sep = ''), width = 600, height = 400)
+ png(file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions_all_traits.png', sep = ''), width = 1000)
  plot(p_allTraits)
  dev.off()
  
@@ -1262,7 +1264,7 @@ layout_fun = matrix(c(c(2, 1, 0),
                borders = F,
                node.width = 3)
   
- png(file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions_FB.png', sep = ''), width = 600, height = 400)
+ (file = paste('Results/Envcorr_', env_corr, '/weight_', weight,'/SEM_functions_FB.png', sep = ''), width = 1000)
  plot(p_FB)
  dev.off()
 ```
@@ -1281,9 +1283,6 @@ for (t2 in unique(all_cwm_lui_not_imputed$traitName2)){
     rsq = a[,1]
     names(rsq) = rownames(a)
     rsq = rsq/sum(rsq)
-    #rsqp = rsq.partial(mod)
-    #rsq = rsqp$partial.rsq
-    #names(rsq) = rsqp$variable
     r = rsq(mod)
     var_part = rbind(var_part, as.data.table(as.list(rsq[c("Mean_Temp","Soil.pH","TWI","Soil.clay.content",'Region', "LUI")]))[, c('traitName', 'Group','r2') := list( t,   g, r)])
 }
@@ -1309,7 +1308,6 @@ var_part[, mean(Mean_Temp +     Soil.pH    +      TWI + Soil.clay.content)]
 
 
 ```{r Correlation between functions and traits} 
-
 vars = c("Plot"                ,          "Dung.decomposition"         ,   "Litter.decomposition"         ,
          "Root.decomposition"  ,          "Biomass.production"         ,   "Urease"                       ,
          "DEA"                 ,          "Potential.nitrification"    ,   "nifH"                         ,
@@ -1340,7 +1338,6 @@ corrs_cast_plot$variable = factor(corrs_cast_plot$variable,
 
 corrplot = ggplot(data = corrs_cast_plot, aes(x = variable0, y = variable, fill=value)) +
  geom_tile() + 
-# labs(x = NULL, y = NULL, fill = "Pearson's\nCorrelation", title="Correlations in Mtcars", subtitle="Only #significant Pearson's correlation coefficients shown") + 
  scale_fill_gradient2(mid="#FBFEF9",low="blue4",high="firebrick4", limits=c(-1,1)) +
  theme_bw() + scale_y_discrete(limits=rev)+ theme(legend.position = 'bottom', axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) 
 

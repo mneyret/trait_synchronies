@@ -20,7 +20,7 @@ library(stringr) # v 1.5.0
 library(taxize) # v 0.9.100  
 library(Taxonstand) # v 2.4
 library(textclean) # v 0.9.3
-library(traitdataform) # v 0.6.8
+library(traitdataform) # v 0.6.8 # https://github.com/EcologicalTraitData/traitdataform
 library(vegan) # v 2.6-4 
 
 wdir = "/Users/margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code"
@@ -51,7 +51,7 @@ source('Traits_to_CWM/Traits_to_CWM_Arthropods.R')
 }
 
 ### Reimport and merge all datasets ####
-for (weighted in c(TRUE, FALSE
+for (weighted in c(TRUE#, FALSE
                    )){
   all_data = data.table()
 for (group in c('birds', 'bats', 'plants', 'arthropods_below_omni_carni', 'arthropods_below_herb', 'arthropods_above_carni', 'arthropods_above_herb', 
@@ -137,12 +137,17 @@ all_data[, traitCoverage := as.character(round(traitCoverage, 2))]
 all_data[traitName %in% c('FB_ratio', 'Symbionts', 'Decomposer', 'Pathotrophs'), traitCoverage := 'NA']
 all_data[traitName %in% c('FB_ratio', 'Symbionts', 'Decomposer', 'Pathotrophs'), traitDescription := paste(traitDescription, '(trait coverage not defined because community-level measure)')]
 
+
+# Clean up dataset
 all_data[, traitValue := as.character(round(traitValue, 6))]
 all_data[is.na(traitValue), traitValue := 'NA']
-all_data[is.na(TraitDataID) | TraitDataID == '' , TraitDataID := 'No trait data from bexis']
-all_data[is.na(traitDataRef)| traitDataRef == "", traitDataRef := 'No external data source']
+all_data[is.na(TraitDataID) | TraitDataID == '' | TraitDataID == "NA", TraitDataID := 'No trait data from bexis']
+all_data[is.na(traitDataRef)| traitDataRef == ""|  traitDataRef == "NA", traitDataRef := 'No external data source']
 all_data[, traitDataRef := gsub('\n', '', traitDataRef)]
-all_data[traitUnit == '', traitUnit := 'no unit (ratio)']
+all_data[traitUnit == '' |traitUnit == 'NA' | traitUnit == 'unitless' , traitUnit := 'no unit']
+all_data[traitUnit == 'µm', traitUnit := 'microm'] 
+all_data = all_data[grepl('G', Plot),] # Exclude forest plots (protists)
+all_data[,EP_PlotID := gsub('G0', 'G', Plot)] # match BExis format
 
 datasets = '20067, 31368, 26587, 27586,  31122,  21228,  24468, 24426,  20250, 20251, 21446, 21447, 21448, 21449, 24690, 25306 , 27707, 19849, 19850 , 27707, 27386 , 27707, 21969, 27406 , 27707, 24468, 24426,  26470, 26472'
 
