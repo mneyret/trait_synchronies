@@ -47,7 +47,7 @@ Bact_data[Genus != '', Std_Genus := get_gbifid_(Genus)[[1]]$genus[1], by = Genus
 #write_csv(Bact_data, "Data/Abundance_data/Bact_data_24866__25066.csv")
 #Bact_data = fread("Data/Temporary_data/Bact_data_24866__25066.csv")
 
-## Standardize Abundance data -> takes some time, do only once!
+## Standardize trait data -> takes some time, do only once!
 
 condensed_species_NCBI[order != '', Std_Order := get_gbifid_(order)[[1]]$order[1], by = order ]
 condensed_species_NCBI[genus != '', Std_Genus := get_gbifid_(genus)[[1]]$genus[1], by = genus ]

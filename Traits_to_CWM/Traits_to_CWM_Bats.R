@@ -106,7 +106,7 @@ traitDescription = c("Distance from elbow to wrist, used as a proxy for body siz
                      "Maximum observed lifespan",
                      'Number of offspring per year',
                      "Generation year: average time between two consecutive generations",
-                     "Body mass")
+                     "Body mass (log)")
 
 traitDataID = c("NA","NA","NA","NA","NA","NA","NA","NA","NA")
 
@@ -120,12 +120,12 @@ traitRef = c("https://doi.org/10.1111/geb.13278, original data is from https://d
              "https://doi.org/10.3897/natureconservation.5.5734, original data is from https://doi.org/10.1890/08-1494.1 and",
              "https://doi.org/10.1111/geb.13278")
 
-names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) =  c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','body.mass')
+names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) =  c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','logBody_mass')
 
-#Bat_traits_melt = melt.data.table(Bat_traits_full[Species %in% Abundance_bats$Species, .SD, .SDcols = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','body.mass', 'Species')], variable.name = 'traitName', value.name = 'traitValue')
-#Bat_traits_info = add_info(Bat_traits_melt, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
+Bat_traits_melt = melt.data.table(Bat_traits_full[Species %in% Abundance_bats$Species, .SD, .SDcols = c("Forearm_length", "Aspect_ratio", "Wing_loading", "Peak_freq", "Duration", "Lifespan", "Number_offspring", 'Gen_length','logBody_mass', 'Species')], variable.name = 'traitName', value.name = 'traitValue')
+Bat_traits_info = add_info(Bat_traits_melt, traitRef, traitDataID, traitDescription, traitUnits, c('19849, 19850 synthesised in 27707'))
 
-#fwrite(Bat_traits_info, "Data/Temporary_data/Bat_traits.csv")
+fwrite(Bat_traits_info, "Data/Temporary_data/Bat_traits.csv")
 
 # ************************** #
 #### 3. Species-level PCA ####

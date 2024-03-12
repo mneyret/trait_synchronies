@@ -6,7 +6,6 @@ Get the following datasets to run the analyses:
 All_CWM_data.csv
 Dataset 31689 on Bexis: https://www.bexis.uni-jena.de/ddm/data/Showdata/31689
 
-
 #### Environmental data folder:
 
 LUI_standardized_global.txt (Open Access)
@@ -23,6 +22,12 @@ https://www.bexis.uni-jena.de/ddm/data/Showdata/31018
 27707_2_Dataset/27707_2_data from https://www.bexis.uni-jena.de/ddm/data/Showdata/27707
 27706_3_Dataset/27706_3_data https://www.bexis.uni-jena.de/ddm/data/Showdata/27706
 (not yet open but some individual groups can be accessed freely - see references in the supplementaries)
+
+
+## Bacteria and fungi
+24866_1_data.txt from https://www.bexis.uni-jena.de/ddm/data/Showdata/2486625066_1_data.txt https://www.bexis.uni-jena.de/ddm/data/Showdata/24866 
+20250_3_Dataset/20250_3_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/2025020251_Dataset/20251.txt from https://www.bexis.uni-jena.de/ddm/data/Showdata/20251
+
 
 ## Arthropod abundance data
 21969_4_Dataset/21969_4_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/21969
@@ -59,9 +64,7 @@ conenna_et_al_2021_trait_data_csv.csv from https://datadryad.org/stash/dataset/d
 
 Life_cycle_Wilkinson2002.xlsx from https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1046%2Fj.1474-9728.2002.00020.x&file=ACEL_020_sm_table.doc
 
-Trait_data/Generation Lenght for Mammals.xlsx from https://natureconservation.pensoft.net/articles.php?id=1343&element_type=5&display_type=element&element_id=31
+Trait_data/Generation Length for Mammals.xlsx from https://natureconservation.pensoft.net/articles.php?id=1343&element_type=5&display_type=element&element_id=31
 
-
-## Bacteria and fungi
-24866_1_data.txt from https://www.bexis.uni-jena.de/ddm/data/Showdata/2486625066_1_data.txt https://www.bexis.uni-jena.de/ddm/data/Showdata/24866 
-20250_3_Dataset/20250_3_data.csv from https://www.bexis.uni-jena.de/ddm/data/Showdata/2025020251_Dataset/20251.txt from https://www.bexis.uni-jena.de/ddm/data/Showdata/20251
+# Bacteria traits: 
+condensed_species_NCBI.csv # You need to re-run the workflow proposed in Madin et al 2020: https://github.com/bacteria-archaea-traits/bacteria-archaea-traits/releases/tag/v1.0.0. The file then can be found in the output folder.

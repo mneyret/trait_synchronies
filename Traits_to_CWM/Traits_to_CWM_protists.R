@@ -248,7 +248,6 @@ CWM_CC_Protists_sec_cons_noweight = merge.data.table(melt.data.table(CWM_Protist
 
 # Add info and export
 
-
 CWM_CC_protists_noweight = add_info(CWM_CC_protists_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
 CWM_CC_protists_bact_noweight = add_info(CWM_CC_Protists_bact_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))
 CWM_CC_protists_sec_cons_noweight = add_info(CWM_CC_Protists_sec_cons_noweight, traitRef, traitDataID, traitDescription, traitUnits, c('24468, 24426, https://www.frontiersin.org/articles/10.3389/fmicb.2020.01823/full'))

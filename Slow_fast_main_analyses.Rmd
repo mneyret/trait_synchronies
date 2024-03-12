@@ -8,7 +8,7 @@ output:
 
 
 ```{r Set-up options, echo = F}
-knitr::opts_knit$set(root.dir = "/Users/margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code")
+knitr::opts_knit$set(root.dir = "")
 ```
 
 ```{r Setup Libraries and parameters, echo = FALSE, include = FALSE}

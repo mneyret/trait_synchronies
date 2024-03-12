@@ -12,7 +12,7 @@ Abundance_birds = Abundance_all[Group_broad == "Birds",]
 # ********************************** #
 
 # Birds trait compiled within the Exploratories
-bird_traits = fread('Data/Trait_data/210819_explo_birdtraits_fromCat.csv') # Exploratories: 31368
+bird_traits = fread('Data/Trait_data/31368_data.csv') # Exploratories: 31368
 bird_traits[grepl('Delichon_urbica', species_latin ),  species_latin:= 'Delichon_urbicum']
 
 # Pigot 2020 for strategies and trophic levels

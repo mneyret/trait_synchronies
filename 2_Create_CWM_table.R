@@ -23,11 +23,12 @@ library(textclean) # v 0.9.3
 library(traitdataform) # v 0.6.8 # https://github.com/EcologicalTraitData/traitdataform
 library(vegan) # v 2.6-4 
 
-wdir = "/Users/margot/Desktop/Research/Senckenberg/Project_Ecosystem_strat/Analysis/Code"
+wdir = "Code/trait_synchronies/"
 setwd(wdir)
 
 # Get the main abundance dataset (most CWM will be based on abundances from this dataset)
 ## Raw diversity
+
 allsp <- fread("Data/Abundance_data/27707_2_Dataset/27707_2_data.csv")
 allsp$Species = gsub('_$', '', allsp$Species ) # Remove _ if last character
 ## Species information
@@ -42,8 +43,11 @@ source('Functions.R')
 rerun_CWM = FALSE
 if (rerun_CWM == TRUE){
 #source('Traits_to_CWM/Traits_to_CWM_Plants.R')
-source('Traits_to_CWM/Traits_to_CWM_Bacterias.R') 
 source('Traits_to_CWM/Traits_to_CWM_Birds.R')
+source('Traits_to_CWM/Traits_to_CWM_Protists.R') 
+  
+source('Traits_to_CWM/Traits_to_CWM_Bacterias.R') 
+  
 source('Traits_to_CWM/Traits_to_CWM_Bats.R') 
 source('Traits_to_CWM/Traits_to_CWM_Protists.R') 
 source('Traits_to_CWM/Traits_to_CWM_Arthropods.R') 
