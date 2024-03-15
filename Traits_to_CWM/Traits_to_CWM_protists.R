@@ -1,5 +1,4 @@
-# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
-# Author: Margot Neyret - Please get in touch if you have questions.
+# This script demonstrate the analysis conducted for the manuscript Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024).
 
 # This script takes as input the abundances and species-level traits of protist taxa
 # and outputs a CWM matrix averaged for all considered years.

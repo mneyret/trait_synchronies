@@ -1,16 +1,15 @@
-# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
-# Author: Margot Neyret - Please get in touch if you have questions.
+# This script demonstrate the analysis conducted for the manuscript Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024).
 
 # This script takes as input the abundances and species-level traits of moth and butterflies species found 
 # in the Exploratories grasslands and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
 #!!! Gbif version: Pre-Nov 2022 (taxonomy matching has been affected by the following update - using trait matched prior to this version)
-# We provide the steps used to match all traits for reference, but the analyses were run on the trait dataset loaded line 300
+# We provide the steps used to match all traits for reference, but the analyses were run on the trait dataset loaded line 300.
+# The input trait dataset can be provided on demand to Margot Neyret.
 
 # ******************* #
 #### 1. Load data ####
 # ****************** #
-
 
 set.seed(101)
 Abundances_lepi = Abundance_all[Group_broad == 'Lepidoptera',]

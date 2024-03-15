@@ -1,7 +1,5 @@
 
-# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
-
-# Author: Margot Neyret - Please get in touch if you have questions.
+# This script demonstrate the analysis conducted for the manuscript Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024).
 
 # This script takes as input the abundances and species-level traits of arthropod species
 # and outputs a CWM matrix averaged for all considered years.
@@ -458,25 +456,27 @@ coll_traits[, Species := gsub('__', '_', Species)]
 # Add info
 # logSize         Gen_per_year     Depth_preference Ocelli           Repro_sex        Pigment          Furca            PAO             
 # PSO              Asp              Scales   
-traitUnits = c("mm (log-transformed)","unitless","unitless","unitless","unitless", 'unitless', 'unitless','unitless', 'unitless', 'unitless', 'unitless')
+traitUnits = c("mm (log-transformed)","unitless","unitless","unitless","%", '%', '%','%', '%', '%', '%')
 traitDescription = c("Body size",
                      "Number of generations per year (coded as bivoltine = 2, multivoltine = 3",
                      "Depth preference (coded as Euedaphic = 2, hemiedaphic = 1, Epiedaphic=0)",
                      "Number of ocelli",
-                     "Reproduction type (bisexual/parthenogenetic)",
-                     "Presence of pigments",
-                     "Presence of a furca",
-                     "Presence of a Post Antennal Organ",
-                     "Presence of pseudocelli",
+                     "% of sexual reproduction",
+                     "% displaying pigments",
+                     "% displaying a furca",
+                     "% displaying Post Antennal Organ",
+                     "% displaying pseudocelli",
                      "Presence of anal spines",
-                     "Presence of scales")
+                     "% displaying scales")
 traitDataID = c("NA","NA","NA","NA", "NA",'NA','NA','NA','NA','NA', 'NA')
 
 traitRef = c("Saifutdinov, Zaytsev, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters", "Polierer, Scheu, 2016; Chernova et al., 2010; Saifutdinov et a., 2018",'Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters', 'Saifutdinov, John, Baulechner & Wolters')
 
-names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('Size_Adult', 'Phenology', 'Vertical_preference', 'Ocelli', 'Reproduction_Ruslan','Pigment','Furca', 'PAO','PSO','Asp', 'Scales')
+traitRef = c("Saifutdinov, Zaytsev, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters","Saifutdinov, John, Baulechner & Wolters", "Polierer, Scheu, 2016; Chernova et al., 2010; Saifutdinov et a., 2018",'Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters','Saifutdinov, John, Baulechner & Wolters', 'Saifutdinov, John, Baulechner & Wolters')
 
-coll_traits_melt = melt.data.table(coll_traits[, list(Size = Size_Adult, Phenology, Vertical_preference, Ocelli, Reproduction = Reproduction_Ruslan,Pigment,Furca, PAO,PSO,Asp, Scales)], variable.name ='traitName', value.var = 'traitValue')
+names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('Size', 'Phenology', 'Vertical_preference', 'Ocelli', 'Reproduction_Ruslan','Pigment','Furca', 'PAO','PSO','Asp', 'Scales')
+
+coll_traits_melt = melt.data.table(coll_traits[, list(Species, Size = Size_Adult, Phenology, Vertical_preference, Ocelli, Reproduction = Reproduction_Ruslan,Pigment,Furca, PAO,PSO,Asp, Scales)], variable.name ='traitName', value.var = 'traitValue', id.var = 'Species')
 coll_traits_info = add_info(coll_traits_melt, traitRef, traitDataID, traitDescription, traitUnits, c('27406 synthesised in 27707'))
 
 fwrite(coll_traits_info, "Data/Temporary_data/Coll_traits.csv")

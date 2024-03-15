@@ -1,4 +1,4 @@
-# This is the script to merge multitrophic CWM trait data used in Neyret et al. "A fast-slow trait continuum at the level of entire communities"
+# This is the script to merge multitrophic CWM trait data used in Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024).
 # It calls separate scripts for each functional guild. Please check the 1_Get_data file to get the raw data.
 
 library(ade4) # v 1.7-22
@@ -23,7 +23,7 @@ library(textclean) # v 0.9.3
 library(traitdataform) # v 0.6.8 # https://github.com/EcologicalTraitData/traitdataform
 library(vegan) # v 2.6-4 
 
-wdir = "Code/trait_synchronies/"
+wdir = "trait_synchronies/"
 setwd(wdir)
 
 # Get the main abundance dataset (most CWM will be based on abundances from this dataset)

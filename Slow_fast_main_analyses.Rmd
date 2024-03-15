@@ -52,9 +52,9 @@ seed = 101
 pal.fnc = colorRamp(c('#4575b4','#91bfdb','#e0f3f8','#fee090','#fc8d59',
                       '#d73027'))
 ```
-This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. It should be run after all CWM tables are created (Create_CWM_table.R).
+This script demonstrate the analysis conducted for the manuscript Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024). It should be run after all CWM tables are created (Create_CWM_table.R).
 
-Author: Margot Neyret - Please get in touch if you have questions.
+Author: Margot Neyret.
 
 The script loads CWM, environmental covariates and ecosystem functions data to
   - test the relationship of individual traits with land-use intensity (LUI)

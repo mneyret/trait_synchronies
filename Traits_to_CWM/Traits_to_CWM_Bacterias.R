@@ -1,7 +1,6 @@
-# This script demonstrate the analysis conducted for the manuscript "A fast-slow trait continuum at the level of entire communities" by Neyret et al. 
-# Author: Margot Neyret - Please get in touch if you have questions.
+# This script demonstrate the analysis conducted for the manuscript Neyret, M., Le Provost, G., Boesing, A.L. et al. A slow-fast trait continuum at the whole community level in relation to land-use intensification. Nat Commun 15, 1251 (2024).
 
-# This script takes as input the OTU abundances, bacteiral traits and community-level fungal trait information
+# This script takes as input the OTU abundances, bacterial traits and community-level fungal trait information
 # and outputs a matched trait dataset, a CWM matrix for all considered years and a species-level PCA.
 
 # Gbif version: Pre-Nov 2022 (taxonomy matching might change afterwards)
@@ -39,16 +38,26 @@ Bact_data[, c("Phylum", "Class", "Order", "Family", "Genus", "Species", "Sequenc
 
 ## Standardize taxonomy ##
 
-## Standardize Abundance data -> takes some time, do only once! 
+# Only taxa that can be matched with taxize / GBIF are kept
 
-Bact_data[Order != '', Std_Order := get_gbifid_(Order)[[1]]$order[1], by = Order ]
-Bact_data[Genus != '', Std_Genus := get_gbifid_(Genus)[[1]]$genus[1], by = Genus ]
+## Standardize Abundance data -> takes some time, do only once! 
+Bact_data[Order != '', Std_Order := lapply(Order, function(x){
+  t = get_gbifid_(x)[[1]]
+  t = t[t$kingdom == 'Bacteria',]
+  std = ifelse(nrow(t)>0 & ('order' %in% colnames(t)), t$order[1], NA)
+  return(std)}), by = Order ] # get_gbifid_ from traidataform package. 
+
+Bact_data[Genus != '', Std_Genus := lapply(Genus, function(x){
+  t = get_gbifid_(x)[[1]]
+  t = t[t$kingdom == 'Bacteria',]
+  std = ifelse(nrow(t)>0 & ('genus' %in% colnames(t)), t$genus[1], NA)
+  return(std)})
+, by = Genus ]
 
 #write_csv(Bact_data, "Data/Abundance_data/Bact_data_24866__25066.csv")
 #Bact_data = fread("Data/Temporary_data/Bact_data_24866__25066.csv")
 
 ## Standardize trait data -> takes some time, do only once!
-
 condensed_species_NCBI[order != '', Std_Order := get_gbifid_(order)[[1]]$order[1], by = order ]
 condensed_species_NCBI[genus != '', Std_Genus := get_gbifid_(genus)[[1]]$genus[1], by = genus ]
 
@@ -87,7 +96,7 @@ traits <- c('oli_copio',"genome_size",  "d2_up", "d1_up","doubling_h")
 # If the data at the genus level is not available, and if the data at the order level is reliable enough, 
 # THEN we use order data for the corresponding genera.
 
-find_main_trait <- function(Traitvalue, Traitname, threshold, Std_Genus) {
+find_main_trait <- function(Traitvalue, Traitname, threshold) {
   Res <- list()
   for (i in 1:ncol(Traitvalue)) {
     traitvalue <- Traitvalue[[i]]
@@ -126,7 +135,7 @@ find_main_trait <- function(Traitvalue, Traitname, threshold, Std_Genus) {
 
       names(Cv) <- paste(traitname, ".cv", sep = "")
       if (!is.na(Cv) & Cv > 1) {
-        Mean <- as.numeric(NA)
+        Mean <- as.numeric(NA) # if sd > mean then we don't keep the trait
       }
       res <- list(Mean, Sd, Cv)
      # print(unlist(res))
@@ -138,11 +147,10 @@ find_main_trait <- function(Traitvalue, Traitname, threshold, Std_Genus) {
   return(Res)
 }
 
+# Proportion of taxa with available traits in the traits database
 Bact_traits_all[, lapply(.SD, function(x){length(x[!is.na(x)])/length(x)})]
 
-### What should be the trophic level for trait aggregation?
-#library(cati)
-
+### Matching and aggregating trait data at multiple taxonomic levels?
 Trait_order <- Bact_traits_all[, find_main_trait(.SD, traits, 0.6),  .SDcols = traits, by = Std_Order]
 Trait_genus <- Bact_traits_all[, find_main_trait(.SD, traits, 0.6),  .SDcols = traits, by = Std_Genus]
 
@@ -150,19 +158,20 @@ traits_all <- c(  "d2_up.mean","d1_up.mean", "doubling_h.mean",
                 'oli_copio.value', 'genome_size.mean')
 
 ## Match with abundance data ##
-
-# There are some ?errors? in the Abundance dataset, with genera being associated to two orders. We need to correct this first, avoiding 
+# There are some errors in the Abundance dataset, with genera being associated to two orders. We need to correct this first, avoiding 
 # the cases where it is only due to "uncultured" or "unidentified" genera.
-genus_order = tapply(Bact_data$Std_Order, Bact_data$Std_Genus, unique)
+genus_order = tapply(Bact_data[!is.na(Std_Order)]$Std_Order, Bact_data[!is.na(Std_Order)]$Std_Genus, unique)
 genus_with_two_orders = genus_order[sapply(genus_order, length)==2 & !(grepl('uncultured', names(genus_order)))]
 names_genus_with_two_orders = names(genus_with_two_orders)
-corr_genus_with_two_orders = sapply(names_genus_with_two_orders, function(x){Bact_traits_all[Std_Genus == x, unique(Std_Order)]})
+corr_genus_with_two_orders = sapply(names_genus_with_two_orders, function(x){Bact_traits_all[Std_Genus == x, unique(Std_Order)]}) # We get the correct Order from the trait dataset
 
 Bact_data_corrected = copy(Bact_data)
-Bact_data_corrected[Std_Genus %in% names(corr_genus_with_two_orders),]$Std_Order = sapply(Bact_data_corrected[Std_Genus %in% names(corr_genus_with_two_orders),Std_Genus],
+
+Bact_data_corrected[Std_Genus %in% names(corr_genus_with_two_orders), Std_Order := sapply(Std_Genus,
       function(x){
+        corr_genus_with_two_orders[[x]]
         print(corr_genus_with_two_orders[[x]])
-      })
+      })]
 
 # To fit with abundance data, I need to have a name for each genus, incl. only ID to order level.
 # For genus names that are not in the trait datasets, I replace the Genus by the Order.
@@ -171,19 +180,20 @@ Bact_data_corrected[!(Std_Genus %in% Bact_traits_all$Std_Genus)
 Bact_data_corrected[is.na(Std_Genus) & !is.na(Std_Order)
                     , Std_Genus := paste(Std_Order, 'genus')]
 
-# Now I create a new trait table with all genera and corresponding orders
+# Now I create a new trait empty table with all genera and corresponding orders
 New_traits_genus_order = data.table(unique(Bact_data_corrected[!is.na(Std_Genus), c('Std_Genus', 'Std_Order')]))
 New_traits_genus_order[, (traits_all) := NA]
 New_traits_genus_order = melt.data.table(New_traits_genus_order, variable.name = "trait", id.var = c('Std_Genus', 'Std_Order'))
 New_traits_genus_order = New_traits_genus_order[!grepl('uncultured', Std_Order),]
 New_traits_genus_order$value = unlist(as.numeric(New_traits_genus_order$value))
 
+# I fill the table with corresponding trait values
 for (i in 1:nrow(New_traits_genus_order)){
  # print('_______')
   genus = New_traits_genus_order$Std_Genus[i]
   order = New_traits_genus_order$Std_Order[i]
   trait = New_traits_genus_order$trait[i]
-  if (genus %in% Trait_genus$Std_Genus){
+  if (!is.na(genus) & genus %in% Trait_genus$Std_Genus){
     if (!is.na(Trait_genus[Std_Genus == genus, ..trait])){
       New_traits_genus_order$value[i] = unlist(Trait_genus[Std_Genus == genus, ..trait])
     }
@@ -197,19 +207,21 @@ for (i in 1:nrow(New_traits_genus_order)){
 
 
 Trait_genus_order = dcast.data.table(New_traits_genus_order, Std_Order + Std_Genus ~ trait, value.var = 'value')
-Trait_genus_order = Trait_genus_order[!grepl('uncultivated', Std_Order) & !grepl('unidentified', Std_Order) & !grepl('metagenome', Std_Order) , ]
+Trait_genus_order = Trait_genus_order[!grepl('uncultivated', Std_Order) & !grepl('unidentified', Std_Order) & !grepl('metagenome', Std_Order) & Std_Genus !="character(0) genus", ]
 
 Trait_genus_order[, c( 'd2_up.mean', 'd1_up.mean','doubling_h.mean', 'genome_size.mean' ) :=
                     lapply(.SD, as.numeric), 
             .SDcols = c( 'd2_up.mean', 'd1_up.mean','doubling_h.mean', 'genome_size.mean'  )]
 
+
 # Aggregate Abundance data to Genus
 Abundance_genus = Bact_data_corrected[, list(value = sum(Read_count, na.rm = T)), by = c( Plot = 'Plot_ID', Std_Genus = 'Std_Genus', Year = 'Year')]
 Abundance_genus[, Plot := Plot_ID]
 
+#fwrite(Bact_data_corrected, "Data/Temporary_data/Bacteria_abundance.csv")
+
 
 ### Transform data frames
-# Check distribution
 Trait_genus[, est_volume := d1_up.mean*d1_up.mean*3.14*d2_up.mean/4]
 Trait_genus_order[, est_volume := d1_up.mean*3.14*d1_up.mean*d2_up.mean/4]
 Trait_genus[, Elongation := d1_up.mean/d2_up.mean]
@@ -219,6 +231,9 @@ Trait_genus_order[, Genome_size := genome_size.mean/1000] # Convert to M bd
 Trait_genus[, c('logLength', 'logDiameter', 'logVolume', 'logDoubling_time') := lapply(.SD, log), .SDcols = c('d1_up.mean', 'd2_up.mean', 'est_volume',  'doubling_h.mean')]
 Trait_genus_order[, c('logLength', 'logDiameter', 'logVolume', 'logDoubling_time') := lapply(.SD, log), .SDcols = c('d1_up.mean', 'd2_up.mean', 'est_volume',  'doubling_h.mean')]
 
+
+Trait_genus_order = unique(Trait_genus_order[, .SD, .SDcols = colnames(Trait_genus_order)[colnames(Trait_genus_order) !='Std_Order']]) # Remove useless column
+       
 traits_all = c("d2_up.mean", "d1_up.mean" , "doubling_h.mean", "oli_copio.value", "Genome_size", 'logLength', 'logDiameter', 'logVolume', 'logDoubling_time', 'Elongation')
 
 
@@ -302,11 +317,9 @@ traitRef = c("https://doi.org/10.1038/s41597-020-0497-4",
 
 names(traitRef) = names(traitDataID) = names(traitDescription) = names(traitUnits) = c('logLength', 'logDiameter', 'logVolume', 'Genome_size', 'logDoubling_time', 'Elongation', 'OC_ratio')
 
-
 CWM_CC_bacterias = add_info(CWM_CC_bacterias, traitRef, traitDataID, traitDescription, traitUnits, c('21446, 21447, 21448, 21449, 24690, 25306 synthesised in 27707'))
 
 fwrite(CWM_CC_bacterias, "Data/CWM_data/CWM_microbes.csv")
-
 
 # ************************************** #
 #### 4. Non-weighted community traits ####
